@@ -5,3 +5,4 @@ members = ["day-*"]
 
 [workspace.dependencies]
 rstest = "0.18.2"
+regex = "1.10.2"
