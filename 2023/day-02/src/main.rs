@@ -3,9 +3,9 @@ use regex::Regex;
 fn main() {
     let input = include_str!("input.txt");
 
-    let lines = process_input(input);
-    println!("Part1: {}", part1(&lines));
-    println!("Part2: {}", part2(&lines));
+    let data = process_input(input);
+    println!("Part1: {}", part1(&data));
+    println!("Part2: {}", part2(&data));
 }
 
 fn process_input(input: &str) -> Vec<Vec<(u32, u32, u32)>> {
