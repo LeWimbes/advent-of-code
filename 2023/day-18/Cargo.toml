@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 regex = { workspace = true }
-itertools = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
