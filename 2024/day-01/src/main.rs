@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use winnow::ascii::{dec_uint, multispace0, space1};
-use winnow::combinator::{repeat, separated_pair, terminated};
+use winnow::combinator::{separated, separated_pair, terminated};
 use winnow::{PResult, Parser};
 
 type ParsedInput = Vec<(u32, u32)>;
@@ -15,15 +15,19 @@ fn main() {
 }
 
 fn parse_input(input: &mut &str) -> PResult<ParsedInput> {
-    repeat(
-        0..,
-        terminated(separated_pair(dec_uint, space1, dec_uint), multispace0),
+    terminated(
+        separated(0.., separated_pair(dec_uint, space1, dec_uint), multispace0),
+        multispace0,
     )
     .parse_next(input)
 }
 
 fn process_input(input: &str) -> ProcessedInput {
-    parse_input.parse(input).unwrap().into_iter().unzip()
+    parse_input
+        .parse(input)
+        .unwrap_or_else(|err| panic!("Couldn't parse input:\n{err}"))
+        .into_iter()
+        .unzip()
 }
 
 fn part1(lists: &ProcessedInput) -> u32 {
