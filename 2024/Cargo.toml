@@ -6,3 +6,4 @@ members = ["day-*"]
 [workspace.dependencies]
 rstest = "0.23.0"
 winnow = "0.6.20"
+itertools = "0.13.0"
