@@ -3,6 +3,9 @@ use winnow::ascii::{dec_uint, multispace0, space1};
 use winnow::combinator::{repeat, separated_pair, terminated};
 use winnow::{PResult, Parser};
 
+type ParsedInput = Vec<(u32, u32)>;
+type ProcessedInput = (Vec<u32>, Vec<u32>);
+
 fn main() {
     let input = include_str!("input.txt");
 
@@ -11,7 +14,7 @@ fn main() {
     println!("Part2: {}", part2(&data));
 }
 
-fn parse_input(input: &mut &str) -> PResult<Vec<(u32, u32)>> {
+fn parse_input(input: &mut &str) -> PResult<ParsedInput> {
     repeat(
         0..,
         terminated(separated_pair(dec_uint, space1, dec_uint), multispace0),
@@ -19,11 +22,11 @@ fn parse_input(input: &mut &str) -> PResult<Vec<(u32, u32)>> {
     .parse_next(input)
 }
 
-fn process_input(input: &str) -> (Vec<u32>, Vec<u32>) {
+fn process_input(input: &str) -> ProcessedInput {
     parse_input.parse(input).unwrap().into_iter().unzip()
 }
 
-fn part1(lists: &(Vec<u32>, Vec<u32>)) -> u32 {
+fn part1(lists: &ProcessedInput) -> u32 {
     let mut list0 = lists.0.clone();
     let mut list1 = lists.1.clone();
     list0.sort_unstable();
@@ -36,7 +39,7 @@ fn part1(lists: &(Vec<u32>, Vec<u32>)) -> u32 {
         .sum()
 }
 
-fn part2(lists: &(Vec<u32>, Vec<u32>)) -> u32 {
+fn part2(lists: &ProcessedInput) -> u32 {
     let mut frequency_map: HashMap<u32, u32> = HashMap::new();
 
     for &num in &lists.1 {
@@ -57,18 +60,18 @@ mod tests {
     use super::*;
 
     #[fixture]
-    fn data() -> (Vec<u32>, Vec<u32>) {
+    fn data() -> ProcessedInput {
         let input = include_str!("input_test.txt");
         process_input(input)
     }
 
     #[rstest]
-    fn part1_test(data: (Vec<u32>, Vec<u32>)) {
+    fn part1_test(data: ProcessedInput) {
         assert_eq!(part1(&data), 11);
     }
 
     #[rstest]
-    fn part2_test(data: (Vec<u32>, Vec<u32>)) {
+    fn part2_test(data: ProcessedInput) {
         assert_eq!(part2(&data), 31);
     }
 }
