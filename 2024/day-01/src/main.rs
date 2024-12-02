@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use winnow::ascii::{dec_uint, multispace0, space1};
+use winnow::ascii::{dec_uint, multispace0, multispace1, space1};
 use winnow::combinator::{separated, separated_pair, terminated};
 use winnow::{PResult, Parser};
 
@@ -16,7 +16,7 @@ fn main() {
 
 fn parse_input(input: &mut &str) -> PResult<ParsedInput> {
     terminated(
-        separated(0.., separated_pair(dec_uint, space1, dec_uint), multispace0),
+        separated(0.., separated_pair(dec_uint, space1, dec_uint), multispace1),
         multispace0,
     )
     .parse_next(input)
