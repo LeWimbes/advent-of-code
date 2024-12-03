@@ -3,7 +3,11 @@ resolver = "2"
 
 members = ["day-*"]
 
+
 [workspace.dependencies]
 rstest = "0.23.0"
+
+regex = "1.11.1"
 winnow = "0.6.20"
+
 itertools = "0.13.0"
