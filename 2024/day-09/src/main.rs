@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-type ParsedInput = Vec<char>;
+type ParsedInput = Vec<u64>;
 type ProcessedInput = Vec<(Option<u64>, u64)>;
 
 fn main() {
@@ -12,7 +12,11 @@ fn main() {
 }
 
 fn parse_input(input: &str) -> ParsedInput {
-    input.trim().chars().collect()
+    input
+        .trim()
+        .chars()
+        .map(|c| u64::from(c.to_digit(10).unwrap()))
+        .collect()
 }
 
 fn process_input(input: &str) -> ProcessedInput {
@@ -23,9 +27,7 @@ fn process_input(input: &str) -> ProcessedInput {
     let mut data = true;
     let mut next_id = 0;
 
-    for c in map {
-        let value = u64::from(c.to_digit(10).unwrap());
-
+    for value in map {
         if data {
             enhanced_map.push((Some(next_id), value));
             next_id += 1;
