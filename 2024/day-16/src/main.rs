@@ -60,7 +60,7 @@ impl PartialOrd for State {
     }
 }
 
-fn run_exhaustive_bfs(
+fn run_exhaustive_dijkstra(
     adj: &[Vec<(usize, usize)>],
     start: usize,
     ends: &[usize],
@@ -187,7 +187,7 @@ fn process_input(input: &str) -> ProcessedInput {
         }
     }
 
-    run_exhaustive_bfs(&adj_map, start, &ends, width, dirs)
+    run_exhaustive_dijkstra(&adj_map, start, &ends, width, dirs)
 }
 
 fn part1((min, _tiles_on_shortest_paths): &ProcessedInput) -> usize {
