@@ -1,5 +1,5 @@
 type ParsedInput = (Vec<String>, Vec<String>);
-type ProcessedInput = (Vec<String>, Vec<String>);
+type ProcessedInput = Vec<usize>;
 
 fn main() {
     let input = include_str!("input.txt");
@@ -27,10 +27,6 @@ fn parse_input(input: &str) -> ParsedInput {
     )
 }
 
-fn process_input(input: &str) -> ProcessedInput {
-    parse_input(input)
-}
-
 fn possible_arrangements(design: &str, patterns: &[String]) -> usize {
     let mut arrangements = vec![0; design.len()];
 
@@ -49,18 +45,21 @@ fn possible_arrangements(design: &str, patterns: &[String]) -> usize {
     arrangements[0]
 }
 
-fn part1((patterns, designs): &ProcessedInput) -> usize {
+fn process_input(input: &str) -> ProcessedInput {
+    let (patterns, designs) = parse_input(input);
+
     designs
         .iter()
-        .filter(|design| possible_arrangements(design, patterns) > 0)
-        .count()
+        .map(|design| possible_arrangements(design, &patterns))
+        .collect()
 }
 
-fn part2((patterns, designs): &ProcessedInput) -> usize {
-    designs
-        .iter()
-        .map(|design| possible_arrangements(design, patterns))
-        .sum()
+fn part1(arrangements: &ProcessedInput) -> usize {
+    arrangements.iter().filter(|&&a| a > 0).count()
+}
+
+fn part2(arrangements: &ProcessedInput) -> usize {
+    arrangements.iter().sum()
 }
 
 #[cfg(test)]
