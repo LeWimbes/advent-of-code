@@ -28,11 +28,7 @@ fn parse_input(input: &str) -> ParsedInput {
 }
 
 fn process_input(input: &str) -> ProcessedInput {
-    let (mut patterns, designs) = parse_input(input);
-
-    patterns.sort();
-
-    (patterns, designs)
+    parse_input(input)
 }
 
 fn possible_arrangements(design: &str, patterns: &[String]) -> usize {
