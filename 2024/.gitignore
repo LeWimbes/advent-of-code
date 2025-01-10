@@ -3,3 +3,6 @@
 
 target/
 Cargo.lock
+
+circuit.dot
+circuit.svg
