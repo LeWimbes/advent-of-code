@@ -1,0 +1,9 @@
+.idea/
+.vscode/
+
+target/
+Cargo.lock
+
+lobby_states/
+circuit.dot
+circuit.svg
