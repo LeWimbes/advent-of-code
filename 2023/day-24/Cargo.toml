@@ -1,0 +1,21 @@
+[package]
+name = "day-24"
+version = "0.1.0"
+edition = "2021"
+
+
+[features]
+test-answers = []
+
+
+[dependencies]
+aoc-macros = { workspace = true }
+regex = { workspace = true }
+itertools = { workspace = true }
+num = { workspace = true }
+nalgebra = { workspace = true }
+
+
+[dev-dependencies]
+aoc-utils = { workspace = true }
+rstest = { workspace = true }
