@@ -1,0 +1,15 @@
+[package]
+name = "aoc-cache"
+version.workspace = true
+edition.workspace = true
+
+
+[lints]
+workspace = true
+
+
+[dependencies]
+ratelimit.workspace = true
+rookie.workspace = true
+thiserror.workspace = true
+ureq.workspace = true
