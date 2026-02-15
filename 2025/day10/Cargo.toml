@@ -1,0 +1,18 @@
+[package]
+name = "day10"
+version.workspace = true
+edition.workspace = true
+
+
+[features]
+test-answers = []
+
+
+[dependencies]
+aoc-utils.workspace = true
+winnow.workspace = true
+good_lp.workspace = true
+
+
+[dev-dependencies]
+rstest.workspace = true

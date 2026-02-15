@@ -1,0 +1,16 @@
+[package]
+name = "day04"
+version.workspace = true
+edition.workspace = true
+
+
+[features]
+test-answers = []
+
+
+[dependencies]
+aoc-utils.workspace = true
+
+
+[dev-dependencies]
+rstest.workspace = true

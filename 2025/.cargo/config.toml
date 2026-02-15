@@ -1,0 +1,2 @@
+[env]
+AOC_CACHE_DIR = { value = "cache", relative = true }
