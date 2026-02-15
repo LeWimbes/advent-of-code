@@ -1,0 +1,19 @@
+[package]
+name = "day22"
+version.workspace = true
+edition.workspace = true
+
+
+[features]
+test-answers = []
+
+
+[dependencies]
+aoc-utils.workspace = true
+regex.workspace = true
+itertools.workspace = true
+rayon.workspace = true
+
+
+[dev-dependencies]
+rstest.workspace = true

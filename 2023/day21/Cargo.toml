@@ -1,0 +1,17 @@
+[package]
+name = "day21"
+version.workspace = true
+edition.workspace = true
+
+
+[features]
+test-answers = []
+
+
+[dependencies]
+aoc-utils.workspace = true
+nalgebra.workspace = true
+
+
+[dev-dependencies]
+rstest.workspace = true
