@@ -1,2 +1,10 @@
 .idea
 .vscode
+
+target/
+
+cache/
+
+lobby_states/
+circuit.dot
+circuit.svg

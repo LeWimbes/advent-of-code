@@ -1,5 +1,5 @@
 [package]
-name = "day04"
+name = "y2025-d04"
 version.workspace = true
 edition.workspace = true
 
