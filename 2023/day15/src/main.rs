@@ -15,7 +15,7 @@ impl Solution for Day15 {
     fn part1(instructions: &Self::Input<'_>) -> Self::Output1 {
         instructions
             .iter()
-            .map(|instruction| hash(instruction) as u64)
+            .map(|instruction| u64::from(hash(instruction)))
             .sum()
     }
 
@@ -38,9 +38,8 @@ impl Solution for Day15 {
 
         let mut boxes: Vec<Vec<Lens>> = vec![Vec::new(); 256];
 
-        instructions
-            .iter()
-            .for_each(|instruction| match instruction {
+        for instruction in &instructions {
+            match instruction {
                 Instruction::Remove(box_index, label) => {
                     let index = boxes[*box_index]
                         .iter()
@@ -60,7 +59,8 @@ impl Solution for Day15 {
                         boxes[*box_index].push(new_lens);
                     }
                 }
-            });
+            }
+        }
 
         boxes
             .iter()

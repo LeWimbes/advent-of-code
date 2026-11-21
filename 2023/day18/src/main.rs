@@ -53,7 +53,7 @@ impl Solution for Day18 {
                 Direction::West => current1.0 -= meters,
                 Direction::South => current1.1 += meters,
                 Direction::East => current1.0 += meters,
-            };
+            }
             coords1.push(current1);
             let meters = instruction.meters2;
             match instruction.direction2 {
@@ -61,7 +61,7 @@ impl Solution for Day18 {
                 Direction::West => current2.0 -= meters,
                 Direction::South => current2.1 += meters,
                 Direction::East => current2.0 += meters,
-            };
+            }
             coords2.push(current2);
         }
 

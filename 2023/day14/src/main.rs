@@ -15,13 +15,13 @@ impl Solution for Day14 {
     }
 
     fn part1(platform: &Self::Input<'_>) -> Self::Output1 {
-        let mut platform = platform.to_vec();
+        let mut platform = platform.clone();
         tilt_north(&mut platform);
         calculate_load_on_north_beam(&platform)
     }
 
     fn part2(platform: &Self::Input<'_>) -> Self::Output2 {
-        let mut platform = platform.to_vec();
+        let mut platform = platform.clone();
 
         let mut patterns: HashMap<String, usize> = HashMap::new();
         patterns.insert(platform_to_string(&platform), 0);

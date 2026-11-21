@@ -58,7 +58,7 @@ struct Present {
 }
 
 impl Present {
-    fn new(shape: Vec<&str>) -> Self {
+    fn new(shape: &[&str]) -> Self {
         let mut variants = Vec::with_capacity(8); // 4 rotations + 4 flips
 
         let original_rows: [u8; PRESENT_SIZE] = shape
@@ -68,7 +68,7 @@ impl Present {
                     acc | match c {
                         '#' => 1 << i,
                         '.' => 0,
-                        _ => panic!("Invalid character in present shape: {}", c),
+                        _ => panic!("Invalid character in present shape: {c}"),
                     }
                 })
             })
@@ -125,6 +125,10 @@ struct Region {
     width: usize,
     height: usize,
     presents: [usize; PRESENT_TYPE_COUNT],
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "only used by the packing solver")
+    )]
     grid: [u64; MAX_GRID_SIZE],
 }
 
@@ -137,7 +141,16 @@ impl Region {
             grid: [0u64; MAX_GRID_SIZE],
         }
     }
+}
 
+/// Packing solver for regions.
+///
+/// The area check in `part1` is enough for the real input, so this is only tested, not used.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "kept for a real packing solver")
+)]
+impl Region {
     /// Check if a variant can fit at position (r, c) without overlapping existing presents.
     fn can_fit(&self, variant: &Variant, r: usize, c: usize) -> bool {
         // Check if the variant fits within the region bounds
@@ -147,7 +160,7 @@ impl Region {
 
         // Check rows for overlaps
         (0..PRESENT_SIZE).all(|row| {
-            let row_mask = (variant.rows[row] as u64) << c;
+            let row_mask = u64::from(variant.rows[row]) << c;
             (self.grid[r + row] & row_mask) == 0
         })
     }
@@ -157,7 +170,7 @@ impl Region {
     /// Should be called only after confirming with `can_fit`.
     fn toggle(&mut self, variant: &Variant, r: usize, c: usize) {
         for row in 0..PRESENT_SIZE {
-            self.grid[r + row] ^= (variant.rows[row] as u64) << c;
+            self.grid[r + row] ^= u64::from(variant.rows[row]) << c;
         }
     }
 }
@@ -171,7 +184,7 @@ fn parse_present(input: &mut &str) -> Result<Present> {
             multispace1,
         ),
     )
-    .map(|shape: Vec<&str>| Present::new(shape))
+    .map(|shape: Vec<&str>| Present::new(&shape))
     .parse_next(input)
 }
 
@@ -218,8 +231,7 @@ mod tests {
     #[rstest]
     fn variant_generation() {
         // Asymmetric shape
-        let shape = vec![".#.", "###", "#.."];
-        let present = Present::new(shape);
+        let present = Present::new(&[".#.", "###", "#.."]);
 
         assert_eq!(present.variants.len(), 8);
 
@@ -233,7 +245,7 @@ mod tests {
             [0b010, 0b111, 0b001], // Flipped 180 deg
             [0b011, 0b110, 0b010], // Flipped 270 deg
         ];
-        expected_rows.sort();
+        expected_rows.sort_unstable();
 
         let actual_rows: Vec<[u8; PRESENT_SIZE]> =
             present.variants.iter().map(|v| v.rows).collect();
@@ -243,8 +255,7 @@ mod tests {
     #[rstest]
     fn variant_deduplication() {
         // Symmetric shape
-        let shape = vec!["###", "#.#", ".#."];
-        let present = Present::new(shape);
+        let present = Present::new(&["###", "#.#", ".#."]);
 
         assert_eq!(present.variants.len(), 4);
 
@@ -254,7 +265,7 @@ mod tests {
             [0b010, 0b101, 0b111], // 180 deg
             [0b110, 0b101, 0b110], // 270 deg
         ];
-        expected_rows.sort();
+        expected_rows.sort_unstable();
 
         let actual_rows: Vec<[u8; PRESENT_SIZE]> =
             present.variants.iter().map(|v| v.rows).collect();

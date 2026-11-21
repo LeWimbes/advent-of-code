@@ -49,4 +49,13 @@ colored = "3.1.1"
 image = "0.25.9"
 
 [workspace.lints.clippy]
-pedantic = "warn"
+pedantic = { level = "warn", priority = -1 }
+
+# Puzzle inputs are small and well-formed, so numeric casts are fine.
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+# Short and similar names are normal in math-heavy puzzle code.
+many_single_char_names = "allow"
+similar_names = "allow"

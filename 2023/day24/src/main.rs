@@ -41,9 +41,12 @@ impl Solution for Day24 {
     ///
     /// Since the stone must intersect all hailstones, and we are working in 3D, we can use the first three hailstones to solve the problem.
     /// The following equations must hold:
+    ///
+    /// ```text
     /// p + t * v = p_i + t_i * v_i
     /// p - p_i = t_i * v_i - t * v
     /// (p - p_i) x (v - v_i) = 0
+    /// ```
     fn part2(hail: &Self::Input<'_>) -> Self::Output2 {
         let mut m = Matrix6::<BigRational>::zeros();
         let mut rhs = Vector6::<BigRational>::zeros();
@@ -142,6 +145,7 @@ fn count_intersections_in_region(hail: &[Hail], low: &BigRational, high: &BigRat
 /// We can't use the `nalgebra` crate because it doesn't support `BigRational`.
 ///
 /// Returns `None` if the matrix is singular, otherwise returns the inverse.
+#[must_use]
 pub fn invert_matrix_6(m: &Matrix6<BigRational>) -> Option<Matrix6<BigRational>> {
     // We will build an augmented matrix of size 6 x 12: [m | I]
     // By applying row operations to reduce it to [I | m^-1]

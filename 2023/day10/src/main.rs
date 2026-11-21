@@ -113,7 +113,7 @@ impl Solution for Day10 {
                                     last_changer = *tile;
                                 }
                                 TileType::Ground | TileType::Start => panic!("Unexpected type!"),
-                            };
+                            }
                             None
                         } else if inside {
                             Some(coord)

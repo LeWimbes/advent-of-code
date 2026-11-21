@@ -57,11 +57,11 @@ impl Solution for Day06 {
     }
 
     fn part1(tasks: &Self::Input<'_>) -> Self::Output1 {
-        tasks.iter().map(|t| t.execute_row_wise()).sum()
+        tasks.iter().map(TaskNew::execute_row_wise).sum()
     }
 
     fn part2(tasks: &Self::Input<'_>) -> Self::Output2 {
-        tasks.iter().map(|t| t.execute_column_wise()).sum()
+        tasks.iter().map(TaskNew::execute_column_wise).sum()
     }
 }
 
@@ -91,7 +91,7 @@ impl TaskNew {
         let nums = self.digits.iter().map(|r| {
             r.iter()
                 .filter(|&&d| d != 10)
-                .fold(0u64, |acc, &d| acc * 10 + d as u64)
+                .fold(0u64, |acc, &d| acc * 10 + u64::from(d))
         });
         self.operator.apply(nums)
     }
@@ -101,7 +101,7 @@ impl TaskNew {
             self.digits
                 .iter()
                 .filter(|row| row[col] != 10)
-                .fold(0u64, |acc, row| acc * 10 + row[col] as u64)
+                .fold(0u64, |acc, row| acc * 10 + u64::from(row[col]))
         });
         self.operator.apply(nums)
     }

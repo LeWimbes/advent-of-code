@@ -82,7 +82,7 @@ impl Direction {
                     return Some((coord.0 + 1, coord.1));
                 }
             }
-        };
+        }
 
         None
     }

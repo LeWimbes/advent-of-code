@@ -43,7 +43,7 @@ impl Solution for Day20 {
                     ModuleType::Broadcaster => {}
                     ModuleType::FlipFlop { state: _state } => {}
                     ModuleType::Conjunction { inputs } => {
-                        *inputs = origins.iter().map(|name| (*name, false)).collect()
+                        *inputs = origins.iter().map(|name| (*name, false)).collect();
                     }
                 }
             }

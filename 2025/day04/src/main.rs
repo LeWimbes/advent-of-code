@@ -15,7 +15,7 @@ impl Solution for Day04 {
             .map(|line| {
                 line.trim()
                     .chars()
-                    .map(|tile| (tile == '@') as u8)
+                    .map(|tile| u8::from(tile == '@'))
                     .collect::<Vec<_>>()
             })
             .filter(|row| !row.is_empty())

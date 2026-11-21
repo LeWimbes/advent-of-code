@@ -22,9 +22,20 @@ impl Solution for Day03 {
             for m in re.find_iter(line) {
                 let value: u32 = m.as_str().parse().unwrap();
 
-                for r in row.saturating_sub(1)..(row + 2).min(grid.len()) {
-                    for c in m.start().saturating_sub(1)..(m.end() + 1).min(grid[row].len()) {
-                        if !non_chars.contains(&grid[r][c]) {
+                // Check all cells adjacent to the number, staying within the grid
+                for (r, cells) in grid
+                    .iter()
+                    .enumerate()
+                    .take(row + 2)
+                    .skip(row.saturating_sub(1))
+                {
+                    for (c, cell) in cells
+                        .iter()
+                        .enumerate()
+                        .take(m.end() + 1)
+                        .skip(m.start().saturating_sub(1))
+                    {
+                        if !non_chars.contains(cell) {
                             chars.entry((r, c)).or_default().push(value);
                         }
                     }
@@ -41,8 +52,8 @@ impl Solution for Day03 {
 
     fn part2(chars: &Self::Input<'_>) -> Self::Output2 {
         chars
-            .iter()
-            .filter_map(|(_key, value)| {
+            .values()
+            .filter_map(|value| {
                 if value.len() == 2 {
                     Some(value.iter().product::<u32>())
                 } else {

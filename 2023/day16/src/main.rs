@@ -112,7 +112,7 @@ impl Direction {
                     return Some((coord.0 + 1, coord.1));
                 }
             }
-        };
+        }
         None
     }
 
@@ -123,8 +123,7 @@ impl Direction {
 
     fn get_next_rays(self, coord: &(usize, usize), bounds: &(usize, usize)) -> Vec<Ray> {
         self.get_next_ray(coord, bounds)
-            .map(|next_ray| vec![next_ray])
-            .unwrap_or_default()
+            .map_or_default(|next_ray| vec![next_ray])
     }
 }
 
@@ -141,8 +140,7 @@ impl Ray {
 
     fn get_next_rays(self, bounds: &(usize, usize)) -> Vec<Ray> {
         self.get_next_ray(bounds)
-            .map(|new_ray| vec![new_ray])
-            .unwrap_or_default()
+            .map_or_default(|new_ray| vec![new_ray])
     }
 }
 

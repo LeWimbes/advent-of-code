@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Write;
 
 use aoc_utils::Solution;
 use winnow::ascii::{alphanumeric1, dec_uint, multispace0, multispace1, space1};
@@ -162,15 +163,15 @@ fn create_graphviz_dot_file(gates: &HashMap<&str, Gate>, xs: &[&str], ys: &[&str
     dot.push_str("digraph {\n");
 
     for &name in xs {
-        dot.push_str(&format!("  {name} [shape=oval]\n"));
+        let _ = writeln!(dot, "  {name} [shape=oval]");
     }
 
     for &name in ys {
-        dot.push_str(&format!("  {name} [shape=oval]\n"));
+        let _ = writeln!(dot, "  {name} [shape=oval]");
     }
 
     for &name in gates.keys() {
-        dot.push_str(&format!("  {name} [shape=oval]\n"));
+        let _ = writeln!(dot, "  {name} [shape=oval]");
     }
 
     for (&name, gate) in gates {
@@ -179,26 +180,26 @@ fn create_graphviz_dot_file(gates: &HashMap<&str, Gate>, xs: &[&str], ys: &[&str
             Gate::And(a, b) => {
                 let temp = format!("AND_{next_id:#03}");
                 next_id += 1;
-                dot.push_str(&format!("  {temp} [label=AND][shape=rectangle]\n",));
-                dot.push_str(&format!("  {a} -> {temp}\n"));
-                dot.push_str(&format!("  {b} -> {temp}\n"));
-                dot.push_str(&format!("  {temp} -> {name}\n"));
+                let _ = writeln!(dot, "  {temp} [label=AND][shape=rectangle]");
+                let _ = writeln!(dot, "  {a} -> {temp}");
+                let _ = writeln!(dot, "  {b} -> {temp}");
+                let _ = writeln!(dot, "  {temp} -> {name}");
             }
             Gate::Or(a, b) => {
                 let temp = format!("OR_{next_id:#03}");
                 next_id += 1;
-                dot.push_str(&format!("  {temp} [label=OR][shape=rectangle]\n"));
-                dot.push_str(&format!("  {a} -> {temp}\n"));
-                dot.push_str(&format!("  {b} -> {temp}\n"));
-                dot.push_str(&format!("  {temp} -> {name}\n"));
+                let _ = writeln!(dot, "  {temp} [label=OR][shape=rectangle]");
+                let _ = writeln!(dot, "  {a} -> {temp}");
+                let _ = writeln!(dot, "  {b} -> {temp}");
+                let _ = writeln!(dot, "  {temp} -> {name}");
             }
             Gate::Xor(a, b) => {
                 let temp = format!("XOR_{next_id:#03}");
                 next_id += 1;
-                dot.push_str(&format!("  {temp} [label=XOR][shape=rectangle]\n"));
-                dot.push_str(&format!("  {a} -> {temp}\n"));
-                dot.push_str(&format!("  {b} -> {temp}\n"));
-                dot.push_str(&format!("  {temp} -> {name}\n"));
+                let _ = writeln!(dot, "  {temp} [label=XOR][shape=rectangle]");
+                let _ = writeln!(dot, "  {a} -> {temp}");
+                let _ = writeln!(dot, "  {b} -> {temp}");
+                let _ = writeln!(dot, "  {temp} -> {name}");
             }
         }
     }
@@ -238,7 +239,7 @@ fn is_valid_full_adder<'a>(
         false
     }) {
         return false;
-    };
+    }
 
     let Some((&xy_c_and, _)) = gates.iter().find(|(_name, gate)| {
         if let Gate::And(a, b) = gate
@@ -316,11 +317,7 @@ fn is_valid_adder(gates: &HashMap<&str, Gate<'_>>, xs: &[&str], ys: &[&str], zs:
     }
 
     // check that end is correct
-    if c != zs[zs.len() - 1] {
-        return false;
-    }
-
-    true
+    c == zs[zs.len() - 1]
 }
 
 fn swap_entries<'a>(

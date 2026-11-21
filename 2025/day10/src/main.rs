@@ -20,16 +20,13 @@ impl AocSolution for Day10 {
     }
 
     fn part1(machines: &Self::Input<'_>) -> Self::Output1 {
-        machines
-            .iter()
-            .map(|machine| machine.bfs_light_diagram())
-            .sum()
+        machines.iter().map(Machine::bfs_light_diagram).sum()
     }
 
     fn part2(machines: &Self::Input<'_>) -> Self::Output2 {
         machines
             .iter()
-            .map(|machine| machine.solve_joltage_requirements())
+            .map(Machine::solve_joltage_requirements)
             .sum()
     }
 }
@@ -46,7 +43,7 @@ fn light_diagram_to_bitflag(diagram: &str) -> u16 {
             | match c {
                 '#' => 1,
                 '.' => 0,
-                _ => panic!("Invalid character in light diagram: {}", c),
+                _ => panic!("Invalid character in light diagram: {c}"),
             }
     })
 }

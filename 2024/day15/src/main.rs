@@ -167,7 +167,7 @@ fn push_boxes_vertically(map: &mut [Vec<Tile>], start: (usize, usize), dir: Dire
                 Tile::Wall => return false,
                 Tile::Floor => {}
                 Tile::Box => {
-                    new_changes.extend_from_slice(&[(Tile::Box, (nx, ny), (nx + dx, ny + dy))])
+                    new_changes.extend_from_slice(&[(Tile::Box, (nx, ny), (nx + dx, ny + dy))]);
                 }
                 Tile::LeftBox => new_changes.extend_from_slice(&[
                     (Tile::LeftBox, (nx, ny), (nx + dx, ny + dy)),

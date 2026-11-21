@@ -376,7 +376,7 @@ fn get_shortest_button_sequence(code: &str, indirections: usize) -> usize {
         .unwrap()
 }
 
-fn get_complexity_sum<'a>(codes: &<Day21 as Solution>::Input<'a>, indirections: usize) -> usize {
+fn get_complexity_sum(codes: &<Day21 as Solution>::Input<'_>, indirections: usize) -> usize {
     codes
         .iter()
         .map(|code| {

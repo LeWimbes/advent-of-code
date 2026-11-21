@@ -78,7 +78,7 @@ impl Solution for Day08 {
                     }
 
                     // Update mappings for circuits that shifted down
-                    for (_, idx) in coord_circuit_map.iter_mut() {
+                    for idx in coord_circuit_map.values_mut() {
                         if *idx > remove {
                             *idx -= 1;
                         }
@@ -89,7 +89,7 @@ impl Solution for Day08 {
 
             if connections_made == connections {
                 let mut circuit_sizes: Vec<usize> =
-                    circuits.iter().map(|circuit| circuit.len()).collect();
+                    circuits.iter().map(std::vec::Vec::len).collect();
                 circuit_sizes.sort_unstable_by(|a, b| b.cmp(a));
                 three_largest_circuits_product = circuit_sizes.iter().take(3).product();
             }

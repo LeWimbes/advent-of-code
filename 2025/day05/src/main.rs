@@ -22,7 +22,7 @@ impl Solution for Day05 {
 
         fresh_ranges.sort();
         fresh_ranges = compile_fresh_ranges(fresh_ranges);
-        ids.sort();
+        ids.sort_unstable();
 
         (fresh_ranges, ids)
     }
@@ -112,7 +112,8 @@ fn compile_fresh_ranges(ranges: Vec<FreshRange>) -> Vec<FreshRange> {
         if last.contains_range(&range) {
             // Current range is fully contained in last range, skip it
             continue;
-        } else if last.overlaps(&range) {
+        }
+        if last.overlaps(&range) {
             // Ranges overlap, extend last range
             last.end = range.end;
         } else {
@@ -127,7 +128,7 @@ fn compile_fresh_ranges(ranges: Vec<FreshRange>) -> Vec<FreshRange> {
 /// Count how many IDs are in fresh ranges.
 ///
 /// Assumes both lists are sorted.
-fn count_fresh<'a>(database: &<Day05 as Solution>::Input<'a>) -> usize {
+fn count_fresh(database: &<Day05 as Solution>::Input<'_>) -> usize {
     let (fresh_ranges, ids) = database;
 
     let mut fresh_range_index = 0;

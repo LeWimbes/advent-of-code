@@ -58,7 +58,7 @@ fn biggest_num_of_n_digits(nums: &[u8], n: usize) -> u64 {
     }
 
     // Convert digits to number
-    digits.iter().fold(0, |acc, &d| acc * 10 + d as u64)
+    digits.iter().fold(0, |acc, &d| acc * 10 + u64::from(d))
 }
 
 #[cfg(test)]

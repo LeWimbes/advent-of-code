@@ -87,7 +87,7 @@ impl Graph {
 
     /// Compute topological order using Kahn's algorithm
     ///
-    /// https://en.wikipedia.org/wiki/Topological_sorting#Kahn's_algorithm
+    /// <https://en.wikipedia.org/wiki/Topological_sorting#Kahn's_algorithm>
     fn topological_order(&self) -> Vec<usize> {
         let n = self.adjacency_list.len();
         let mut in_degree = vec![0usize; n];
