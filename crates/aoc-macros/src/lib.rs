@@ -1,11 +1,11 @@
 //! Macros for the `Solution` trait from `aoc-utils`.
 
-use aoc_cache::{get_example_input_files, get_input_file};
-use proc_macro2::TokenStream;
+use aoc_cache::{get_example_files, get_input_file, is_last_day};
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
-use syn::token::Comma;
-use syn::{Ident, LitInt, parse_macro_input};
+use syn::punctuated::Punctuated;
+use syn::{Ident, LitInt, Token, bracketed, parse_macro_input};
 
 /// Parsed macro input: year, day, `SolutionType`
 struct YearDaySolution {
@@ -17,15 +17,56 @@ struct YearDaySolution {
 impl Parse for YearDaySolution {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let year_lit: LitInt = input.parse()?;
-        let _comma1: Comma = input.parse()?;
+        input.parse::<Token![,]>()?;
         let day_lit: LitInt = input.parse()?;
-        let _comma2: Comma = input.parse()?;
+        input.parse::<Token![,]>()?;
         let solution_type: Ident = input.parse()?;
 
         Ok(YearDaySolution {
             year: year_lit.base10_parse()?,
             day: day_lit.base10_parse()?,
             solution_type,
+        })
+    }
+}
+
+/// Parsed macro input: year, day, `SolutionType`, and optionally `examples = [...]`
+struct SolutionTestsInput {
+    year_day_solution: YearDaySolution,
+    examples: Vec<usize>,
+    examples_span: Span,
+}
+
+impl Parse for SolutionTestsInput {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let year_day_solution = input.parse()?;
+        let mut examples = Vec::new();
+        let mut examples_span = Span::call_site();
+
+        if input.parse::<Option<Token![,]>>()?.is_some() && !input.is_empty() {
+            let key: Ident = input.parse()?;
+            if key != "examples" {
+                return Err(syn::Error::new(key.span(), "expected `examples = [...]`"));
+            }
+            input.parse::<Token![=]>()?;
+
+            let content;
+            let brackets = bracketed!(content in input);
+            examples_span = brackets.span.join();
+            for lit in Punctuated::<LitInt, Token![,]>::parse_terminated(&content)? {
+                let index: usize = lit.base10_parse()?;
+                if index == 0 {
+                    return Err(syn::Error::new(lit.span(), "example indices start at 1"));
+                }
+                examples.push(index);
+            }
+            input.parse::<Option<Token![,]>>()?;
+        }
+
+        Ok(SolutionTestsInput {
+            year_day_solution,
+            examples,
+            examples_span,
         })
     }
 }
@@ -71,7 +112,12 @@ pub fn run(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 /// Generate rstest fixtures for example inputs and an answer regression test.
 ///
-/// Creates fixtures named `data1`, `data2`, etc. that return `<T as Solution>::Input`.
+/// `examples = [...]` selects code blocks from the puzzle page by their position (starting at 1),
+/// and creates fixtures named `data1`, `data2`, etc. for them, in the given order.
+/// They return `<T as Solution>::Input`.
+/// All code blocks are cached in `cache/<year>/day<day>/examples/`,
+/// which helps finding the right positions.
+///
 /// Also generates a `test_answers` test (gated by `#[cfg(feature = "test-answers")]`)
 /// that validates solutions against submitted answers.
 ///
@@ -82,7 +128,8 @@ pub fn run(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// mod tests {
 ///     use super::*;
 ///
-///     aoc_utils::solution_tests!(2015, 1, Day01);
+///     // `data1` is the 2nd and `data2` the 5th code block on the puzzle page
+///     aoc_utils::solution_tests!(2015, 1, Day01, examples = [2, 5]);
 ///
 ///     #[rstest]
 ///     fn part1_example(data1: <Day01 as Solution>::Input) {
@@ -92,20 +139,29 @@ pub fn run(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// ```
 #[proc_macro]
 pub fn solution_tests(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let YearDaySolution {
-        year,
-        day,
-        solution_type,
-    } = parse_macro_input!(input as YearDaySolution);
+    let SolutionTestsInput {
+        year_day_solution:
+            YearDaySolution {
+                year,
+                day,
+                solution_type,
+            },
+        examples,
+        examples_span,
+    } = parse_macro_input!(input as SolutionTestsInput);
 
     let file_path = match get_input_file(year, day) {
         Ok(path) => path,
         Err(e) => return compile_error(&e).into(),
     };
 
-    let example_files = match get_example_input_files(year, day) {
-        Ok(files) => files,
-        Err(e) => return compile_error(&e).into(),
+    let example_files = if examples.is_empty() {
+        Vec::new()
+    } else {
+        match get_example_files(year, day, &examples) {
+            Ok(files) => files,
+            Err(e) => return syn::Error::new(examples_span, e).to_compile_error().into(),
+        }
     };
 
     let fixtures = example_files.iter().enumerate().map(|(idx, file_path)| {
@@ -119,19 +175,17 @@ pub fn solution_tests(input: proc_macro::TokenStream) -> proc_macro::TokenStream
         }
     });
 
-    let has_part2 = (year <= 2024 && day != 25) || (year >= 2025 && day != 12);
-
-    let part2_test = if has_part2 {
+    let part2_test = if is_last_day(year, day) {
+        quote! {
+            assert!(answers.1.is_none(), "An answer has been submitted for part 2, but the last day shouldn't have one.");
+        }
+    } else {
         quote! {
             assert!(answers.1.is_some(), "The answer for part 2 hasn't been submitted yet.");
             if let Some(answer) = answers.1 {
                 let result = <#solution_type as ::aoc_utils::Solution>::part2(&data);
                 assert_eq!(answer, ::std::string::ToString::to_string(&result), "Part 2 is incorrect.");
             }
-        }
-    } else {
-        quote! {
-            assert!(answers.1.is_none(), "An answer has been submitted for part 2, but the last day shouldn't have one.");
         }
     };
 

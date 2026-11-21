@@ -78,8 +78,7 @@ mod tests {
 
     use super::*;
 
-    // Note: The automatic test input fetching retrieves incorrect data.
-    aoc_utils::solution_tests!(2024, 22, Day22);
+    aoc_utils::solution_tests!(2024, 22, Day22, examples = [2, 6]);
 
     #[rstest]
     fn part1_test(data1: <Day22 as Solution>::Input<'_>) {

@@ -27,7 +27,8 @@ impl Solution for Day10 {
                         'J' => TileType::TopLeft,
                         '7' => TileType::BottomLeft,
                         'F' => TileType::BottomRight,
-                        '.' => TileType::Ground,
+                        // The examples mark tiles outside and inside the loop with O and I
+                        '.' | 'O' | 'I' => TileType::Ground,
                         'S' => {
                             start = Some((x, y));
                             TileType::Start
@@ -343,8 +344,7 @@ mod tests {
 
     use super::*;
 
-    // Note: The automatic test input fetching retrieves incorrect data.
-    aoc_utils::solution_tests!(2023, 10, Day10);
+    aoc_utils::solution_tests!(2023, 10, Day10, examples = [2, 4, 10, 12, 13, 15]);
 
     #[rstest]
     fn part1_test1(data1: <Day10 as Solution>::Input<'_>) {

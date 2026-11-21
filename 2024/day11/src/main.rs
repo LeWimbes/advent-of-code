@@ -80,12 +80,17 @@ fn stones_after_blinks(stones: &<Day11 as Solution>::Input<'_>, blinks: usize) -
 
 #[cfg(test)]
 mod tests {
-    use rstest::rstest;
+    use rstest::{fixture, rstest};
 
     use super::*;
 
-    // Note: The automatic test input fetching retrieves incorrect data.
     aoc_utils::solution_tests!(2024, 11, Day11);
+
+    // The example appears inside a longer code block, so it's written out here.
+    #[fixture]
+    fn data1() -> <Day11 as Solution>::Input<'static> {
+        Day11::process("125 17")
+    }
 
     #[rstest]
     fn part1_test(data1: <Day11 as Solution>::Input<'_>) {

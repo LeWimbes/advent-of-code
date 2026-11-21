@@ -1,21 +1,40 @@
-//! Caching utilities for `AoC` inputs and answers.
+//! Fetches and caches puzzle data from the Advent of Code website.
+//!
+//! Everything is stored in the cache directory:
+//!
+//! ```text
+//! cache/
+//! ├── .last-request        # Lock and timestamp for the rate limit
+//! └── 2024/day10/
+//!     ├── input.txt        # The puzzle input
+//!     ├── puzzle.html      # The puzzle page, containing the answers and examples
+//!     └── examples/01.txt  # Every code block on the puzzle page, in order
+//! ```
+//!
+//! Each file is only fetched once.
+//! The puzzle page is fetched again only when it lacks data that is asked for:
+//! a code block or answer that only appears once a part is solved.
 
-use ratelimit::Ratelimiter;
-use rookie::firefox;
+mod extract;
+mod fetch;
+
 use std::fs;
 use std::io;
-use std::path::PathBuf;
-use std::sync::OnceLock;
-use std::time::Duration;
+use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
+
+use fetch::RequestLock;
 use thiserror::Error;
 
 /// Errors that can occur when fetching or caching `AoC` data.
 #[derive(Debug, Error)]
 pub enum CacheError {
-    #[error("failed to create cache directory: {0}")]
-    CreateCacheDir(#[source] io::Error),
+    #[error("failed to read from cache: {0}")]
+    ReadCache(#[source] io::Error),
     #[error("failed to write to cache: {0}")]
     WriteCache(#[source] io::Error),
+    #[error("failed to lock the cache for fetching: {0}")]
+    Lock(#[source] io::Error),
     #[error("failed to get session cookie from browser")]
     SessionNotFound,
     #[error("HTTP request failed: {0}")]
@@ -23,257 +42,167 @@ pub enum CacheError {
     #[error("received HTTP status {0}")]
     HttpStatus(u16),
     #[error("failed to read response body: {0}")]
-    HttpBody(#[source] io::Error),
-    #[error("failed to parse problem page: {0}")]
-    ParseError(String),
+    HttpBody(String),
+    #[error("example indices start at 1")]
+    InvalidExampleIndex,
+    #[error("the puzzle page has no code block {index}, only {available}")]
+    ExampleNotFound { index: usize, available: usize },
 }
 
 /// Result type for cache operations.
 pub type Result<T> = std::result::Result<T, CacheError>;
 
-fn get_cache_dir() -> &'static PathBuf {
-    static CACHE_DIR: OnceLock<PathBuf> = OnceLock::new();
-    CACHE_DIR.get_or_init(|| {
-        std::env::var("AOC_CACHE_DIR").map_or_else(
-            |_| PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/cache")),
-            PathBuf::from,
-        )
-    })
-}
-
-fn get_cache_file(file_name: &str) -> Result<PathBuf> {
-    let cache_dir = get_cache_dir();
-    fs::create_dir_all(cache_dir).map_err(CacheError::CreateCacheDir)?;
-    Ok(cache_dir.join(file_name))
-}
-
-fn get_rate_limiter() -> &'static Ratelimiter {
-    static LIMITER: OnceLock<Ratelimiter> = OnceLock::new();
-    LIMITER.get_or_init(|| {
-        Ratelimiter::builder(1, Duration::from_secs(1))
-            .max_tokens(1)
-            .build()
-            .unwrap()
-    })
-}
-
-fn get_session() -> Result<String> {
-    let cookies = firefox(Some(vec!["adventofcode.com".to_string()]))
-        .map_err(|_| CacheError::SessionNotFound)?;
-    cookies
-        .first()
-        .map(|cookie| cookie.value.clone())
-        .ok_or(CacheError::SessionNotFound)
-}
-
-fn fetch_text(url: &str) -> Result<String> {
-    while let Err(sleep) = get_rate_limiter().try_wait() {
-        std::thread::sleep(sleep);
-    }
-
-    let session = get_session()?;
-    let mut response = ureq::get(url)
-        .header("Cookie", &format!("session={session}"))
-        .call()
-        .map_err(|e| CacheError::HttpRequest(e.to_string()))?;
-
-    if response.status() != 200 {
-        return Err(CacheError::HttpStatus(response.status().as_u16()));
-    }
-
-    response
-        .body_mut()
-        .read_to_string()
-        .map_err(|e| CacheError::HttpBody(io::Error::other(e)))
-}
-
-fn fetch_problem(year: u32, day: u32) -> Result<String> {
-    let url = format!("https://adventofcode.com/{year}/day/{day}");
-    fetch_text(&url)
-}
-
-fn fetch_input(year: u32, day: u32) -> Result<String> {
-    let url = format!("https://adventofcode.com/{year}/day/{day}/input");
-    fetch_text(&url)
-}
-
-fn fetch_answers(year: u32, day: u32) -> Result<(Option<String>, Option<String>)> {
-    let contents = fetch_problem(year, day)?;
-
-    let mut answers = (None, None);
-    let mut contents: &str = &contents;
-
-    if let Some(index) = contents.find("Your puzzle answer was <code>") {
-        contents = &contents[index + "Your puzzle answer was <code>".len()..];
-        let end = contents
-            .find("</code>.")
-            .ok_or_else(|| CacheError::ParseError("missing end of first answer".into()))?;
-        answers.0 = Some(contents[..end].to_string());
-    }
-
-    if let Some(index) = contents.find("Your puzzle answer was <code>") {
-        contents = &contents[index + "Your puzzle answer was <code>".len()..];
-        let end = contents
-            .find("</code>.")
-            .ok_or_else(|| CacheError::ParseError("missing end of second answer".into()))?;
-        answers.1 = Some(contents[..end].to_string());
-    }
-
-    Ok(answers)
-}
-
-fn fetch_example_inputs(year: u32, day: u32) -> Result<Vec<String>> {
-    let problem_html = fetch_problem(year, day)?;
-
-    let mut examples = Vec::new();
-    let search_patterns = ["For example", "for example", "another example"];
-    let mut search_start = 0;
-
-    while search_start < problem_html.len() {
-        let next_match = search_patterns
-            .iter()
-            .filter_map(|pattern| {
-                problem_html[search_start..]
-                    .find(pattern)
-                    .map(|pos| (pos, pattern.len()))
-            })
-            .min_by_key(|(pos, _)| *pos);
-
-        let Some((rel_pos, pattern_len)) = next_match else {
-            break;
-        };
-
-        search_start = search_start + rel_pos + pattern_len;
-
-        let Some(pre_start) = problem_html[search_start..]
-            .find('\n')
-            .map(|next_newline| search_start + next_newline + 1)
-        else {
-            continue;
-        };
-        if !problem_html[pre_start..].starts_with("<pre><code>") {
-            continue;
-        }
-
-        let pre_start = pre_start + "<pre><code>".len();
-        if let Some(pre_end) = problem_html[pre_start..].find("</code></pre>") {
-            let pre_end = pre_start + pre_end;
-            let example_input = &problem_html[pre_start..pre_end];
-            let cleaned_input = example_input
-                .replace("<em>", "")
-                .replace("</em>", "")
-                .replace("&amp;", "&")
-                .replace("&lt;", "<")
-                .replace("&gt;", ">");
-            examples.push(cleaned_input);
-            search_start = pre_end + "</code></pre>".len();
-        } else {
-            break;
-        }
-    }
-    Ok(examples)
-}
-
-/// Get the path to the cached input file for a given year/day.
+/// Whether a day is the last of its year, which only has one part.
 ///
-/// If the file doesn't exist, it will be fetched.
+/// Until 2024, every year had 25 days.
+/// Since 2025, there are 12.
+#[must_use]
+pub fn is_last_day(year: u32, day: u32) -> bool {
+    if year <= 2024 { day == 25 } else { day == 12 }
+}
+
+static CACHE_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+    // crates/aoc-cache -> repository root
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .unwrap()
+        .join("cache")
+});
+
+fn day_dir(year: u32, day: u32) -> PathBuf {
+    CACHE_DIR
+        .join(year.to_string())
+        .join(format!("day{day:02}"))
+}
+
+/// Get the path to the cached input for a given year and day, fetching it if needed.
+///
+/// # Errors
+///
+/// Returns an error if the input isn't cached and can't be fetched.
+pub fn get_input_file(year: u32, day: u32) -> Result<String> {
+    let path = day_dir(year, day).join("input.txt");
+    let url = format!("https://adventofcode.com/{year}/day/{day}/input");
+    fetch_cached(&path, &url, |_| false)?;
+    Ok(path_string(&path))
+}
+
+/// Get the paths to the given code blocks on the puzzle page, as example inputs.
+///
+/// `indices` start at 1 and refer to all code blocks on the page, in order.
+/// The cached files in `examples/` can be used to find the right indices.
 ///
 /// # Errors
 ///
 /// Returns an error if
-/// - the cache directory can't be created,
-/// - or the input can't be fetched.
-pub fn get_input_file(year: u32, day: u32) -> Result<String> {
-    let cache_path = get_cache_file(&format!("{year}-{day}-input.txt"))?;
+/// - an index is 0 or the page doesn't have that many code blocks,
+/// - or the puzzle page isn't cached and can't be fetched.
+pub fn get_example_files(year: u32, day: u32, indices: &[usize]) -> Result<Vec<String>> {
+    if indices.contains(&0) {
+        return Err(CacheError::InvalidExampleIndex);
+    }
+    let needed = indices.iter().copied().max().unwrap_or(0);
 
-    if cache_path.exists() {
-        return Ok(cache_path.to_string_lossy().into_owned());
+    // A block that's missing might be in part 2, which appears once part 1 is solved.
+    let page = fetch_puzzle_page(year, day, |page| extract::code_blocks(page).len() < needed)?;
+    let blocks = extract::code_blocks(&page);
+    if needed > blocks.len() {
+        return Err(CacheError::ExampleNotFound {
+            index: needed,
+            available: blocks.len(),
+        });
     }
 
-    let contents = fetch_input(year, day)?;
-    fs::write(&cache_path, &contents).map_err(CacheError::WriteCache)?;
+    // Write all blocks, so they can be browsed to pick the right indices.
+    let examples_dir = day_dir(year, day).join("examples");
+    let paths: Vec<PathBuf> = (1..=blocks.len())
+        .map(|index| examples_dir.join(format!("{index:02}.txt")))
+        .collect();
+    for (path, block) in paths.iter().zip(&blocks) {
+        write_if_changed(path, block)?;
+    }
 
-    Ok(cache_path.to_string_lossy().into_owned())
+    Ok(indices
+        .iter()
+        .map(|&index| path_string(&paths[index - 1]))
+        .collect())
 }
 
-/// Get the submitted answers for a given year/day.
+/// Get the submitted answers for a given year and day.
 ///
 /// Returns a tuple of (`part1_answer`, `part2_answer`),
-/// where each is `None` if that part hasn't been submitted yet.
+/// where each is `None` if that part hasn't been solved yet.
 ///
 /// # Errors
 ///
-/// Returns an error if
-/// - the cache directory can't be created,
-/// - or answers can't be fetched.
+/// Returns an error if the puzzle page isn't cached or lacks answers, and can't be fetched.
 pub fn get_answers(year: u32, day: u32) -> Result<(Option<String>, Option<String>)> {
-    let cache_path = get_cache_file(&format!("{year}-{day}-answers.txt"))?;
-
-    // Try to read from cache first
-    if let Ok(contents) = fs::read_to_string(&cache_path) {
-        let mut lines = contents.lines();
-        let part1 = lines.next().filter(|s| !s.is_empty()).map(String::from);
-        let part2 = lines.next().filter(|s| !s.is_empty()).map(String::from);
-        return Ok((part1, part2));
-    }
-
-    // Fetch from website
-    let answers = fetch_answers(year, day)?;
-
-    // Only cache if both answers are present
-    if answers.0.is_some() && answers.1.is_some() {
-        let contents = format!(
-            "{}\n{}\n",
-            answers.0.as_deref().unwrap_or(""),
-            answers.1.as_deref().unwrap_or("")
-        );
-        fs::write(&cache_path, &contents).map_err(CacheError::WriteCache)?;
-    }
-
-    Ok(answers)
+    let expected = if is_last_day(year, day) { 1 } else { 2 };
+    let page = fetch_puzzle_page(year, day, |page| extract::answers(page).len() < expected)?;
+    let mut answers = extract::answers(&page).into_iter();
+    Ok((answers.next(), answers.next()))
 }
 
-/// Get the paths to cached example input files for a given year/day.
-///
-/// If the files don't exist, examples will be parsed from the problem page.
-///
-/// # Errors
-///
-/// Returns an error if
-/// - the cache directory can't be created,
-/// - or examples can't be fetched.
-pub fn get_example_input_files(year: u32, day: u32) -> Result<Vec<String>> {
-    let metadata_path = get_cache_file(&format!("{year}-{day}-example-inputs.txt"))?;
+fn fetch_puzzle_page(year: u32, day: u32, is_outdated: impl Fn(&str) -> bool) -> Result<String> {
+    let path = day_dir(year, day).join("puzzle.html");
+    let url = format!("https://adventofcode.com/{year}/day/{day}");
+    fetch_cached(&path, &url, is_outdated)
+}
 
-    // Check if we have cached example files
-    if let Ok(count_str) = fs::read_to_string(&metadata_path)
-        && let Ok(count) = count_str.trim().parse::<usize>()
+/// Read a cached file, fetching it first if it's missing or outdated.
+///
+/// If it's still outdated after fetching, the fetched version is returned anyway.
+fn fetch_cached(path: &Path, url: &str, is_outdated: impl Fn(&str) -> bool) -> Result<String> {
+    if let Some(contents) = read_cached(path)?
+        && !is_outdated(&contents)
     {
-        let cache_files: Result<Vec<PathBuf>> = (1..=count)
-            .map(|idx| get_cache_file(&format!("{year}-{day}-example-input{idx}.txt")))
-            .collect();
-        let cache_files = cache_files?;
-
-        if cache_files.iter().all(|f| f.exists()) {
-            return Ok(cache_files
-                .into_iter()
-                .map(|p| p.to_string_lossy().into_owned())
-                .collect());
-        }
+        return Ok(contents);
     }
 
-    // Fetch examples from website
-    let examples = fetch_example_inputs(year, day)?;
-    let mut cache_files = Vec::new();
+    let mut lock = RequestLock::acquire(&CACHE_DIR.join(".last-request"))?;
 
-    for (idx, content) in examples.iter().enumerate() {
-        let cache_file = get_cache_file(&format!("{year}-{day}-example-input{}.txt", idx + 1))?;
-        fs::write(&cache_file, content).map_err(CacheError::WriteCache)?;
-        cache_files.push(cache_file.to_string_lossy().into_owned());
+    // Another process might have fetched it while waiting for the lock.
+    if let Some(contents) = read_cached(path)?
+        && !is_outdated(&contents)
+    {
+        return Ok(contents);
     }
 
-    // Write metadata file with count
-    fs::write(&metadata_path, examples.len().to_string()).map_err(CacheError::WriteCache)?;
+    let contents = lock.fetch(url)?;
+    write_atomic(path, &contents)?;
+    Ok(contents)
+}
 
-    Ok(cache_files)
+fn path_string(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
+}
+
+fn read_cached(path: &Path) -> Result<Option<String>> {
+    match fs::read_to_string(path) {
+        Ok(contents) => Ok(Some(contents)),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(CacheError::ReadCache(e)),
+    }
+}
+
+/// Write a file without touching it if the contents are the same.
+///
+/// The macros include these files, so touching them would trigger rebuilds.
+fn write_if_changed(path: &Path, contents: &str) -> Result<()> {
+    if read_cached(path)?.as_deref() == Some(contents) {
+        return Ok(());
+    }
+    write_atomic(path, contents)
+}
+
+/// Write a file so that other processes never see it half-written.
+fn write_atomic(path: &Path, contents: &str) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(CacheError::WriteCache)?;
+    }
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(format!(".{}.tmp", std::process::id()));
+    fs::write(&tmp, contents).map_err(CacheError::WriteCache)?;
+    fs::rename(&tmp, path).map_err(CacheError::WriteCache)
 }

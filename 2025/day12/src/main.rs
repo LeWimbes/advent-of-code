@@ -220,7 +220,7 @@ mod tests {
 
     use super::*;
 
-    aoc_utils::solution_tests!(2025, 12, Day12);
+    aoc_utils::solution_tests!(2025, 12, Day12, examples = [1]);
 
     // The area-based heuristic works for the real input but not this small example.
     // #[rstest]

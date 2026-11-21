@@ -393,7 +393,7 @@ mod tests {
 
     use super::*;
 
-    aoc_utils::solution_tests!(2024, 21, Day21);
+    aoc_utils::solution_tests!(2024, 21, Day21, examples = [4]);
 
     #[rstest]
     fn part1_test(data1: <Day21 as Solution>::Input<'_>) {
