@@ -1,0 +1,55 @@
+#:schema https://www.schemastore.org/prek.json
+
+[[repos]]
+repo = "builtin"
+hooks = [
+  { id = "check-toml" },
+  { id = "end-of-file-fixer" },
+  { id = "mixed-line-ending" },
+  { id = "trailing-whitespace" },
+]
+
+[[repos]]
+repo = "https://github.com/crate-ci/typos"
+rev = "v1.52.2"
+hooks = [
+  { id = "typos" },
+]
+
+[[repos]]
+repo = "https://github.com/tombi-toml/tombi-pre-commit"
+rev = "v1.11.3"
+hooks = [
+  { id = "tombi-format" },
+  { id = "tombi-lint" },
+]
+
+[[repos]]
+repo = "local"
+hooks = [
+  {
+    id = "cargo-fmt",
+    name = "cargo fmt",
+    language = "system",
+    entry = "just fmt",
+    pass_filenames = false,
+    types = ["rust"]
+  },
+  {
+    id = "cargo-clippy",
+    name = "cargo clippy",
+    language = "system",
+    env = { CARGO_BUILD_WARNINGS = "deny" },
+    entry = "just clippy --keep-going",
+    pass_filenames = false,
+    types = ["rust"]
+  },
+  {
+    id = "cargo-test",
+    name = "cargo test",
+    language = "system",
+    entry = "just test",
+    pass_filenames = false,
+    types = ["rust"]
+  },
+]

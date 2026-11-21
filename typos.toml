@@ -1,0 +1,7 @@
+[default]
+# Puzzle grids drawn in comments, e.g. `// 00BBA`.
+extend-ignore-re = ["(?m)^\\s*// [0-9A-Za-z.#]+$"]
+
+[default.extend-words]
+# Stoer-Wagner minimum cut algorithm.
+stoer = "stoer"

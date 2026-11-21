@@ -1,0 +1,42 @@
+use aoc_utils::Solution;
+
+struct Day__DAY_PADDED__;
+
+impl Solution for Day__DAY_PADDED__ {
+    type Input<'a> = Vec<&'a str>;
+    type Output1 = u64;
+    type Output2 = u64;
+
+    fn process(input: &str) -> Self::Input<'_> {
+        input.lines().collect()
+    }
+
+    fn part1(_input: &Self::Input<'_>) -> Self::Output1 {
+        todo!()
+    }
+
+    fn part2(_input: &Self::Input<'_>) -> Self::Output2 {
+        todo!()
+    }
+}
+
+aoc_utils::run!(__YEAR__, __DAY__, Day__DAY_PADDED__);
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+
+    use super::*;
+
+    aoc_utils::solution_tests!(__YEAR__, __DAY__, Day__DAY_PADDED__);
+
+    #[rstest]
+    fn part1_test(data1: <Day__DAY_PADDED__ as Solution>::Input<'_>) {
+        assert_eq!(0, Day__DAY_PADDED__::part1(&data1));
+    }
+
+    #[rstest]
+    fn part2_test(data1: <Day__DAY_PADDED__ as Solution>::Input<'_>) {
+        assert_eq!(0, Day__DAY_PADDED__::part2(&data1));
+    }
+}

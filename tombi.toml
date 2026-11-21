@@ -1,0 +1,9 @@
+toml-version = "v1.1.0"
+
+[files]
+# Tombi and cargo fight over lockfiles.
+exclude = ["**/Cargo.lock"]
+
+[format.rules]
+# Tombi >= 1.4 treats an omitted line width as unlimited.
+line-width = 80
