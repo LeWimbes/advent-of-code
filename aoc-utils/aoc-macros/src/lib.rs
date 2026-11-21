@@ -61,9 +61,9 @@ pub fn run(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     quote! {
         fn main() {
             const INPUT: &str = include_str!(#file_path);
-            let (part1, part2) = <#solution_type as ::aoc_utils::Solution>::solve(INPUT);
-            println!("Part1: {part1}");
-            println!("Part2: {part2}");
+            let data = <#solution_type as ::aoc_utils::Solution>::process(INPUT);
+            println!("Part1: {}", <#solution_type as ::aoc_utils::Solution>::part1(&data));
+            println!("Part2: {}", <#solution_type as ::aoc_utils::Solution>::part2(&data));
         }
     }
     .into()

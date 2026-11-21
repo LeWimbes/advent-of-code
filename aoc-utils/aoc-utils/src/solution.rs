@@ -21,11 +21,4 @@ pub trait Solution {
 
     /// Solve part 2 of the puzzle.
     fn part2(input: &Self::Input<'_>) -> Self::Output2;
-
-    /// Run both parts and return their results.
-    #[must_use]
-    fn solve(input: &str) -> (Self::Output1, Self::Output2) {
-        let data = Self::process(input);
-        (Self::part1(&data), Self::part2(&data))
-    }
 }
