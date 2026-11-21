@@ -3,16 +3,13 @@ name = "y2023-d10"
 version.workspace = true
 edition.workspace = true
 
-
 [features]
 test-answers = []
 
-
 [dependencies]
 aoc-utils.workspace = true
-itertools.workspace = true
 colored.workspace = true
-
+itertools.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true

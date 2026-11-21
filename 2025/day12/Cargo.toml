@@ -3,15 +3,12 @@ name = "y2025-d12"
 version.workspace = true
 edition.workspace = true
 
-
 [features]
 test-answers = []
-
 
 [dependencies]
 aoc-utils.workspace = true
 winnow.workspace = true
-
 
 [dev-dependencies]
 rstest.workspace = true

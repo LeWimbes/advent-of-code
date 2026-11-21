@@ -3,16 +3,13 @@ name = "y2024-d02"
 version.workspace = true
 edition.workspace = true
 
-
 [features]
 test-answers = []
 
-
 [dependencies]
 aoc-utils.workspace = true
-winnow.workspace = true
 itertools.workspace = true
-
+winnow.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true

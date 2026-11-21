@@ -1,17 +1,14 @@
 [package]
 name = "y2024-d07"
 version.workspace = true
-edition.workspace = true    
-
+edition.workspace = true
 
 [features]
 test-answers = []
 
-
 [dependencies]
 aoc-utils.workspace = true
 winnow.workspace = true
-
 
 [dev-dependencies]
 rstest.workspace = true

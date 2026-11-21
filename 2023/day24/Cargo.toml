@@ -3,18 +3,15 @@ name = "y2023-d24"
 version.workspace = true
 edition.workspace = true
 
-
 [features]
 test-answers = []
 
-
 [dependencies]
 aoc-utils.workspace = true
-regex.workspace = true
 itertools.workspace = true
-num.workspace = true
 nalgebra.workspace = true
-
+num.workspace = true
+regex.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true

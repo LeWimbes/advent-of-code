@@ -1,16 +1,11 @@
 [workspace]
 resolver = "3"
 
-members = ["crates/*", "20*/day*"]
+members = ["20*/day*", "crates/*"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-
-
-[workspace.lints.clippy]
-pedantic = "warn"
-
 
 [workspace.dependencies]
 # Internal crates
@@ -41,10 +36,17 @@ itertools = "0.14.0"
 rayon = "1.11.0"
 
 # Math and optimization
-good_lp = { version = "1.14.2", features = ["microlp"], default-features = false }
+good_lp = {
+  version = "1.14.2",
+  default-features = false,
+  features = ["microlp"]
+}
 nalgebra = "0.34.1"
 num = "0.4.3"
 
 # Output and visualization
 colored = "3.1.1"
 image = "0.25.9"
+
+[workspace.lints.clippy]
+pedantic = "warn"

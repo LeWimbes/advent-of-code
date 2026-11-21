@@ -3,16 +3,13 @@ name = "y2023-d23"
 version.workspace = true
 edition.workspace = true
 
-
 [features]
 test-answers = []
-
 
 [dependencies]
 aoc-utils.workspace = true
 itertools.workspace = true
 rayon.workspace = true
-
 
 [dev-dependencies]
 rstest.workspace = true
