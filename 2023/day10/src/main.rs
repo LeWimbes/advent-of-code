@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet, LinkedList};
 
 use aoc_utils::Solution;
+use aoc_utils::grid::{Direction, Grid, Pos};
 
 use colored::{Color, Colorize};
 use itertools::Itertools;
@@ -8,38 +9,24 @@ use itertools::Itertools;
 struct Day10;
 
 impl Solution for Day10 {
-    type Input<'a> = (Vec<Vec<TileType>>, (usize, usize), Vec<(usize, usize)>);
+    type Input<'a> = (Grid<TileType>, Pos, Vec<Pos>);
     type Output1 = usize;
     type Output2 = usize;
 
     fn process(input: &str) -> Self::Input<'_> {
-        let mut start = None;
-        let mut area: Vec<Vec<TileType>> = input
-            .lines()
-            .enumerate()
-            .map(|(y, line)| {
-                line.chars()
-                    .enumerate()
-                    .map(|(x, tile)| match tile {
-                        '|' => TileType::TopBottom,
-                        '-' => TileType::LeftRight,
-                        'L' => TileType::TopRight,
-                        'J' => TileType::TopLeft,
-                        '7' => TileType::BottomLeft,
-                        'F' => TileType::BottomRight,
-                        // The examples mark tiles outside and inside the loop with O and I
-                        '.' | 'O' | 'I' => TileType::Ground,
-                        'S' => {
-                            start = Some((x, y));
-                            TileType::Start
-                        }
-                        unknown => panic!("Unknown tile: {unknown}"),
-                    })
-                    .collect()
-            })
-            .collect();
-
-        let start = start.unwrap();
+        let mut area = Grid::parse(input, |tile| match tile {
+            '|' => TileType::TopBottom,
+            '-' => TileType::LeftRight,
+            'L' => TileType::TopRight,
+            'J' => TileType::TopLeft,
+            '7' => TileType::BottomLeft,
+            'F' => TileType::BottomRight,
+            // The examples mark tiles outside and inside the loop with O and I
+            '.' | 'O' | 'I' => TileType::Ground,
+            'S' => TileType::Start,
+            unknown => panic!("Unknown tile: {unknown}"),
+        });
+        let start = area.find(&TileType::Start).unwrap();
 
         let cycle = [
             TileType::TopBottom,
@@ -51,7 +38,7 @@ impl Solution for Day10 {
         ]
         .iter()
         .find_map(|tile_type| {
-            area[start.1][start.0] = *tile_type;
+            area[start] = *tile_type;
 
             find_cycle(&area, &start)
         });
@@ -64,60 +51,48 @@ impl Solution for Day10 {
     }
 
     fn part2((area, start, cycle): &Self::Input<'_>) -> Self::Output2 {
+        // Only keep the tiles of the loop
+        let mut clean_area = Grid::new(area.width(), area.height(), TileType::Ground);
+        for &pos in cycle {
+            clean_area[pos] = area[pos];
+        }
         let cycle: HashSet<_> = cycle.iter().collect();
-        let clean_area: Vec<Vec<TileType>> = area
-            .iter()
-            .enumerate()
-            .map(|(y, row)| {
-                row.iter()
-                    .enumerate()
-                    .map(|(x, tile)| {
-                        if cycle.contains(&(x, y)) {
-                            *tile
-                        } else {
-                            TileType::Ground
-                        }
-                    })
-                    .collect()
-            })
-            .collect();
 
-        let enclosed_tiles: HashSet<(usize, usize)> = clean_area
-            .iter()
+        let enclosed_tiles: HashSet<Pos> = clean_area
+            .rows()
             .enumerate()
             .flat_map(|(y, row)| {
                 let mut inside = false;
-                let mut last_changer = TileType::TopBottom;
+                let mut last_changer = &TileType::TopBottom;
                 row.iter()
                     .enumerate()
                     .filter_map(|(x, tile)| {
-                        let coord = (x, y);
-                        if cycle.contains(&coord) {
+                        if *tile != TileType::Ground {
                             match tile {
                                 TileType::TopBottom
                                 | TileType::TopRight
                                 | TileType::BottomRight => {
                                     inside = !inside;
-                                    last_changer = *tile;
+                                    last_changer = tile;
                                 }
                                 TileType::LeftRight => {}
                                 TileType::TopLeft => {
-                                    if last_changer != TileType::BottomRight {
+                                    if last_changer != &TileType::BottomRight {
                                         inside = !inside;
                                     }
-                                    last_changer = *tile;
+                                    last_changer = tile;
                                 }
                                 TileType::BottomLeft => {
-                                    if last_changer != TileType::TopRight {
+                                    if last_changer != &TileType::TopRight {
                                         inside = !inside;
                                     }
-                                    last_changer = *tile;
+                                    last_changer = tile;
                                 }
                                 TileType::Ground | TileType::Start => panic!("Unexpected type!"),
                             }
                             None
                         } else if inside {
-                            Some(coord)
+                            Some(Pos::new(x, y))
                         } else {
                             None
                         }
@@ -151,128 +126,45 @@ enum TileType {
     Start,
 }
 
-fn push_top_if_valid(
-    area: &[Vec<TileType>],
-    coord: (usize, usize),
-    neighbors: &mut Vec<(usize, usize)>,
-) {
-    let (x, y) = coord;
-    if y > 0 {
-        let top = area[y - 1][x];
-        if top == TileType::Start
-            || top == TileType::TopBottom
-            || top == TileType::BottomLeft
-            || top == TileType::BottomRight
-        {
-            neighbors.push((x, y - 1));
+impl TileType {
+    /// The directions in which this tile connects to its neighbours.
+    fn connections(self) -> &'static [Direction] {
+        match self {
+            TileType::TopBottom => &[Direction::North, Direction::South],
+            TileType::LeftRight => &[Direction::West, Direction::East],
+            TileType::TopRight => &[Direction::North, Direction::East],
+            TileType::TopLeft => &[Direction::North, Direction::West],
+            TileType::BottomLeft => &[Direction::South, Direction::West],
+            TileType::BottomRight => &[Direction::South, Direction::East],
+            TileType::Ground => &[],
+            TileType::Start => &Direction::ALL4,
         }
     }
 }
 
-fn push_bottom_if_valid(
-    area: &[Vec<TileType>],
-    coord: (usize, usize),
-    neighbors: &mut Vec<(usize, usize)>,
-) {
-    let (x, y) = coord;
-    if y < area.len() - 1 {
-        let bottom = area[y + 1][x];
-        if bottom == TileType::Start
-            || bottom == TileType::TopBottom
-            || bottom == TileType::TopRight
-            || bottom == TileType::TopLeft
-        {
-            neighbors.push((x, y + 1));
-        }
-    }
+/// The neighbours that `coord` connects to and that connect back.
+fn neighbors(area: &Grid<TileType>, coord: Pos) -> Vec<Pos> {
+    area[coord]
+        .connections()
+        .iter()
+        .filter_map(|&dir| {
+            let next = area.step(coord, dir)?;
+            area[next]
+                .connections()
+                .contains(&dir.opposite())
+                .then_some(next)
+        })
+        .collect()
 }
 
-fn push_left_if_valid(
-    area: &[Vec<TileType>],
-    coord: (usize, usize),
-    neighbors: &mut Vec<(usize, usize)>,
-) {
-    let (x, y) = coord;
-    if x > 0 {
-        let left = area[y][x - 1];
-        if left == TileType::Start
-            || left == TileType::LeftRight
-            || left == TileType::TopRight
-            || left == TileType::BottomRight
-        {
-            neighbors.push((x - 1, y));
-        }
-    }
-}
-
-fn push_right_if_valid(
-    area: &[Vec<TileType>],
-    coord: (usize, usize),
-    neighbors: &mut Vec<(usize, usize)>,
-) {
-    let (x, y) = coord;
-    if x < area[y].len() - 1 {
-        let right = area[y][x + 1];
-        if right == TileType::Start
-            || right == TileType::LeftRight
-            || right == TileType::TopLeft
-            || right == TileType::BottomLeft
-        {
-            neighbors.push((x + 1, y));
-        }
-    }
-}
-
-fn neighbors(area: &[Vec<TileType>], coord: (usize, usize)) -> Vec<(usize, usize)> {
-    let mut neighbors = Vec::new();
-    let (x, y) = coord;
-
-    match area[y][x] {
-        TileType::TopBottom => {
-            push_top_if_valid(area, coord, &mut neighbors);
-            push_bottom_if_valid(area, coord, &mut neighbors);
-        }
-        TileType::LeftRight => {
-            push_left_if_valid(area, coord, &mut neighbors);
-            push_right_if_valid(area, coord, &mut neighbors);
-        }
-        TileType::TopRight => {
-            push_top_if_valid(area, coord, &mut neighbors);
-            push_right_if_valid(area, coord, &mut neighbors);
-        }
-        TileType::TopLeft => {
-            push_top_if_valid(area, coord, &mut neighbors);
-            push_left_if_valid(area, coord, &mut neighbors);
-        }
-        TileType::BottomLeft => {
-            push_bottom_if_valid(area, coord, &mut neighbors);
-            push_left_if_valid(area, coord, &mut neighbors);
-        }
-        TileType::BottomRight => {
-            push_bottom_if_valid(area, coord, &mut neighbors);
-            push_right_if_valid(area, coord, &mut neighbors);
-        }
-        TileType::Ground => {}
-        TileType::Start => {
-            push_top_if_valid(area, coord, &mut neighbors);
-            push_bottom_if_valid(area, coord, &mut neighbors);
-            push_left_if_valid(area, coord, &mut neighbors);
-            push_right_if_valid(area, coord, &mut neighbors);
-        }
-    }
-
-    neighbors
-}
-
-fn pretty_print_area(area: &[Vec<TileType>], colors: &Vec<(Color, HashSet<&(usize, usize)>)>) {
-    let top_bottom = (0..area[0].len()).map(|_| '─').join("").bold().green();
+fn pretty_print_area(area: &Grid<TileType>, colors: &Vec<(Color, HashSet<&Pos>)>) {
+    let top_bottom = (0..area.width()).map(|_| '─').join("").bold().green();
     println!("{}{}{}", "┌".bold().green(), top_bottom, "┐".bold().green());
-    area.iter().enumerate().for_each(|(y, row)| {
+    area.rows().enumerate().for_each(|(y, row)| {
         let row_str = row
             .iter()
             .enumerate()
             .map(|(x, tile)| {
-                let coord = (x, y);
                 let tile_str = match tile {
                     TileType::TopBottom => "│",
                     TileType::LeftRight => "─",
@@ -284,7 +176,7 @@ fn pretty_print_area(area: &[Vec<TileType>], colors: &Vec<(Color, HashSet<&(usiz
                     TileType::Start => "S",
                 };
                 if let Some(color) = colors.iter().find_map(|(color, tiles)| {
-                    if tiles.contains(&coord) {
+                    if tiles.contains(&Pos::new(x, y)) {
                         Some(color)
                     } else {
                         None
@@ -306,17 +198,17 @@ fn pretty_print_area(area: &[Vec<TileType>], colors: &Vec<(Color, HashSet<&(usiz
     println!("{}{}{}", "└".bold().green(), top_bottom, "┘".bold().green());
 }
 
-fn find_cycle(area: &[Vec<TileType>], start: &(usize, usize)) -> Option<Vec<(usize, usize)>> {
-    let mut parent_map: HashMap<(usize, usize), (usize, usize)> = HashMap::new();
-    let mut visited: HashSet<(usize, usize)> = HashSet::new();
-    let mut stack: LinkedList<((usize, usize), (usize, usize))> = LinkedList::new();
+fn find_cycle(area: &Grid<TileType>, start: &Pos) -> Option<Vec<Pos>> {
+    let mut parent_map: HashMap<Pos, Pos> = HashMap::new();
+    let mut visited: HashSet<Pos> = HashSet::new();
+    let mut stack: LinkedList<(Pos, Pos)> = LinkedList::new();
 
-    stack.push_back((*start, (usize::MAX, usize::MAX)));
+    stack.push_back((*start, Pos::new(usize::MAX, usize::MAX)));
 
     while let Some((current, parent)) = stack.pop_back() {
         if visited.contains(&current) {
             let mut last = parent_map[&current];
-            let mut cycle: Vec<(usize, usize)> = vec![last];
+            let mut cycle: Vec<Pos> = vec![last];
             while &last != start {
                 last = parent_map[&last];
                 cycle.push(last);

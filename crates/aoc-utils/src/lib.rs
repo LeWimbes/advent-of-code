@@ -1,5 +1,6 @@
 //! Advent of Code utility library with trait-based solution framework.
 
+pub mod grid;
 mod solution;
 
 // Re-export cache utilities and error types

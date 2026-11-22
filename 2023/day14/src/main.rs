@@ -2,16 +2,17 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 
 use aoc_utils::Solution;
+use aoc_utils::grid::{Grid, Pos};
 
 struct Day14;
 
 impl Solution for Day14 {
-    type Input<'a> = Vec<Vec<char>>;
+    type Input<'a> = Grid<char>;
     type Output1 = usize;
     type Output2 = usize;
 
     fn process(input: &str) -> Self::Input<'_> {
-        input.lines().map(|line| line.chars().collect()).collect()
+        Grid::parse(input, |c| c)
     }
 
     fn part1(platform: &Self::Input<'_>) -> Self::Output1 {
@@ -24,7 +25,7 @@ impl Solution for Day14 {
         let mut platform = platform.clone();
 
         let mut patterns: HashMap<String, usize> = HashMap::new();
-        patterns.insert(platform_to_string(&platform), 0);
+        patterns.insert(platform.to_string(), 0);
 
         let total_tilting_cycles = 1_000_000_000;
 
@@ -35,8 +36,7 @@ impl Solution for Day14 {
             tilt_south(&mut platform);
             tilt_east(&mut platform);
 
-            let string = platform_to_string(&platform);
-            match patterns.entry(string) {
+            match patterns.entry(platform.to_string()) {
                 Entry::Occupied(entry) => {
                     let cycle_length = tilting_cycle - *entry.get();
                     let cycles = (total_tilting_cycles - tilting_cycle) / cycle_length;
@@ -58,14 +58,14 @@ impl Solution for Day14 {
 aoc_utils::run!(2023, 14, Day14);
 
 fn tilt_north(platform: &mut <Day14 as Solution>::Input<'_>) {
-    for x in 0..platform[0].len() {
+    for x in 0..platform.width() {
         let mut next_y = 0;
-        for y in 0..platform.len() {
-            match platform[y][x] {
+        for y in 0..platform.height() {
+            match platform[Pos::new(x, y)] {
                 '#' => next_y = y + 1,
                 'O' => {
-                    platform[y][x] = '.';
-                    platform[next_y][x] = 'O';
+                    platform[Pos::new(x, y)] = '.';
+                    platform[Pos::new(x, next_y)] = 'O';
                     next_y += 1;
                 }
                 _ => {}
@@ -75,14 +75,14 @@ fn tilt_north(platform: &mut <Day14 as Solution>::Input<'_>) {
 }
 
 fn tilt_west(platform: &mut <Day14 as Solution>::Input<'_>) {
-    for y in 0..platform.len() {
+    for y in 0..platform.height() {
         let mut next_x = 0;
-        for x in 0..platform[0].len() {
-            match platform[y][x] {
+        for x in 0..platform.width() {
+            match platform[Pos::new(x, y)] {
                 '#' => next_x = x + 1,
                 'O' => {
-                    platform[y][x] = '.';
-                    platform[y][next_x] = 'O';
+                    platform[Pos::new(x, y)] = '.';
+                    platform[Pos::new(next_x, y)] = 'O';
                     next_x += 1;
                 }
                 _ => {}
@@ -92,14 +92,14 @@ fn tilt_west(platform: &mut <Day14 as Solution>::Input<'_>) {
 }
 
 fn tilt_south(platform: &mut <Day14 as Solution>::Input<'_>) {
-    for x in 0..platform[0].len() {
-        let mut next_y = platform.len() - 1;
-        for y in (0..platform.len()).rev() {
-            match platform[y][x] {
+    for x in 0..platform.width() {
+        let mut next_y = platform.height() - 1;
+        for y in (0..platform.height()).rev() {
+            match platform[Pos::new(x, y)] {
                 '#' => next_y = y.saturating_sub(1),
                 'O' => {
-                    platform[y][x] = '.';
-                    platform[next_y][x] = 'O';
+                    platform[Pos::new(x, y)] = '.';
+                    platform[Pos::new(x, next_y)] = 'O';
                     next_y = next_y.saturating_sub(1);
                 }
                 _ => {}
@@ -109,14 +109,14 @@ fn tilt_south(platform: &mut <Day14 as Solution>::Input<'_>) {
 }
 
 fn tilt_east(platform: &mut <Day14 as Solution>::Input<'_>) {
-    for y in 0..platform.len() {
-        let mut next_x = platform[0].len() - 1;
-        for x in (0..platform[0].len()).rev() {
-            match platform[y][x] {
+    for y in 0..platform.height() {
+        let mut next_x = platform.width() - 1;
+        for x in (0..platform.width()).rev() {
+            match platform[Pos::new(x, y)] {
                 '#' => next_x = x.saturating_sub(1),
                 'O' => {
-                    platform[y][x] = '.';
-                    platform[y][next_x] = 'O';
+                    platform[Pos::new(x, y)] = '.';
+                    platform[Pos::new(next_x, y)] = 'O';
                     next_x = next_x.saturating_sub(1);
                 }
                 _ => {}
@@ -127,20 +127,12 @@ fn tilt_east(platform: &mut <Day14 as Solution>::Input<'_>) {
 
 fn calculate_load_on_north_beam(platform: &<Day14 as Solution>::Input<'_>) -> usize {
     platform
-        .iter()
-        .zip((1..=platform.len()).rev())
+        .rows()
+        .zip((1..=platform.height()).rev())
         .map(|(row, load_caused_by_one)| {
             row.iter().filter(|tile| **tile == 'O').count() * load_caused_by_one
         })
         .sum::<usize>()
-}
-
-fn platform_to_string(platform: &<Day14 as Solution>::Input<'_>) -> String {
-    platform
-        .iter()
-        .map(|row| row.iter().collect::<String>())
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 #[cfg(test)]

@@ -1,27 +1,24 @@
 use aoc_utils::Solution;
+use aoc_utils::grid::Grid;
 
 struct Day07;
 
 impl Solution for Day07 {
-    type Input<'a> = Vec<Vec<char>>;
+    type Input<'a> = Grid<char>;
     type Output1 = u64;
     type Output2 = u64;
 
     fn process(input: &str) -> Self::Input<'_> {
-        input
-            .lines()
-            .map(|line| line.chars().collect::<Vec<_>>())
-            .collect::<Vec<_>>()
+        Grid::parse(input, |c| c)
     }
 
     fn part1(map: &Self::Input<'_>) -> Self::Output1 {
-        let width = map[0].len();
-        let mut beams = vec![false; width];
-        beams[width / 2] = true;
+        let mut beams = vec![false; map.width()];
+        beams[map.width() / 2] = true;
         let mut splits = 0;
 
-        for row in map.iter().skip(1) {
-            let mut new_beams = vec![false; width];
+        for row in map.rows().skip(1) {
+            let mut new_beams = vec![false; map.width()];
             for (i, is_beam) in beams.iter().enumerate() {
                 if !is_beam {
                     continue;
@@ -41,12 +38,11 @@ impl Solution for Day07 {
     }
 
     fn part2(map: &Self::Input<'_>) -> Self::Output2 {
-        let width = map[0].len();
-        let mut beams = vec![0u64; width];
-        beams[width / 2] = 1;
+        let mut beams = vec![0u64; map.width()];
+        beams[map.width() / 2] = 1;
 
-        for row in map.iter().skip(1) {
-            let mut new_beams = vec![0; width];
+        for row in map.rows().skip(1) {
+            let mut new_beams = vec![0; map.width()];
             for (i, &worlds) in beams.iter().enumerate() {
                 if worlds == 0 {
                     continue;

@@ -1,7 +1,8 @@
-use std::cmp::Ordering;
+use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashSet};
 
 use aoc_utils::Solution;
+use aoc_utils::grid::{Direction, Grid, Pos};
 
 struct Day16;
 
@@ -11,81 +12,32 @@ impl Solution for Day16 {
     type Output2 = usize;
 
     fn process(input: &str) -> Self::Input<'_> {
-        let map: Vec<Vec<_>> = input
-            .lines()
-            .filter(|line| !line.is_empty())
-            .map(|line| line.chars().collect())
-            .collect();
+        let map = Grid::parse(input, |c| c);
 
-        let height = map.len();
-        let width = map[0].len();
-        let dirs = 4;
+        // Each combination of position and direction is a node in the graph
+        let id =
+            |pos: Pos, dir: Direction| map.flat_index(pos) * Direction::ALL4.len() + dir as usize;
 
-        let mut adj_map = vec![Vec::new(); height * width * dirs];
-        let mut start = 0;
-        let mut ends = Vec::new();
+        let mut adj_map = vec![Vec::new(); map.width() * map.height() * Direction::ALL4.len()];
 
-        for y in 1..height - 1 {
-            for x in 1..width - 1 {
-                let tile = map[y][x];
-
-                if tile == '#' {
-                    continue;
-                }
-
-                if tile == 'S' {
-                    start = position_to_id(x, y, Direction::East, width, dirs);
-                } else if tile == 'E' {
-                    ends = vec![
-                        position_to_id(x, y, Direction::North, width, dirs),
-                        position_to_id(x, y, Direction::East, width, dirs),
-                        position_to_id(x, y, Direction::South, width, dirs),
-                        position_to_id(x, y, Direction::West, width, dirs),
-                    ];
-                }
-
-                for dir in [
-                    Direction::North,
-                    Direction::East,
-                    Direction::South,
-                    Direction::West,
-                ] {
-                    let adj = &mut adj_map[position_to_id(x, y, dir, width, dirs)];
-                    match dir {
-                        Direction::North => {
-                            adj.push((position_to_id(x, y, Direction::East, width, dirs), 1000));
-                            adj.push((position_to_id(x, y, Direction::West, width, dirs), 1000));
-                            if map[y - 1][x] != '#' {
-                                adj.push((position_to_id(x, y - 1, dir, width, dirs), 1));
-                            }
-                        }
-                        Direction::East => {
-                            adj.push((position_to_id(x, y, Direction::South, width, dirs), 1000));
-                            adj.push((position_to_id(x, y, Direction::North, width, dirs), 1000));
-                            if map[y][x + 1] != '#' {
-                                adj.push((position_to_id(x + 1, y, dir, width, dirs), 1));
-                            }
-                        }
-                        Direction::South => {
-                            adj.push((position_to_id(x, y, Direction::West, width, dirs), 1000));
-                            adj.push((position_to_id(x, y, Direction::East, width, dirs), 1000));
-                            if map[y + 1][x] != '#' {
-                                adj.push((position_to_id(x, y + 1, dir, width, dirs), 1));
-                            }
-                        }
-                        Direction::West => {
-                            adj.push((position_to_id(x, y, Direction::South, width, dirs), 1000));
-                            adj.push((position_to_id(x, y, Direction::North, width, dirs), 1000));
-                            if map[y][x - 1] != '#' {
-                                adj.push((position_to_id(x - 1, y, dir, width, dirs), 1));
-                            }
-                        }
-                    }
+        for (pos, _) in map.iter().filter(|&(_pos, &tile)| tile != '#') {
+            for dir in Direction::ALL4 {
+                let adj = &mut adj_map[id(pos, dir)];
+                adj.push((id(pos, dir.turn_right()), 1000));
+                adj.push((id(pos, dir.turn_left()), 1000));
+                if let Some(next) = map.step(pos, dir)
+                    && map[next] != '#'
+                {
+                    adj.push((id(next, dir), 1));
                 }
             }
         }
 
-        run_exhaustive_dijkstra(&adj_map, start, &ends, width, dirs)
+        let start = id(map.find(&'S').unwrap(), Direction::East);
+        let end = map.find(&'E').unwrap();
+        let ends = Direction::ALL4.map(|dir| id(end, dir));
+
+        run_exhaustive_dijkstra(&adj_map, start, &ends)
     }
 
     fn part1((min, _tiles_on_shortest_paths): &Self::Input<'_>) -> Self::Output1 {
@@ -99,77 +51,32 @@ impl Solution for Day16 {
 
 aoc_utils::run!(2024, 16, Day16);
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-enum Direction {
-    North = 0,
-    East = 1,
-    South = 2,
-    West = 3,
-}
-
-fn position_to_id(x: usize, y: usize, dir: Direction, width: usize, dirs: usize) -> usize {
-    y * width * dirs + x * dirs + dir as usize
-}
-
-fn id_to_coord(id: usize, width: usize, dirs: usize) -> (usize, usize) {
-    let coords = id / dirs;
-    let y = coords / width;
-    let x = coords % width;
-    (x, y)
-}
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-struct State {
-    dist: usize,
-    id: usize,
-}
-
-impl Ord for State {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other
-            .dist
-            .cmp(&self.dist)
-            .then_with(|| self.id.cmp(&other.id))
-    }
-}
-
-impl PartialOrd for State {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
 fn run_exhaustive_dijkstra(
     adj: &[Vec<(usize, usize)>],
     start: usize,
     ends: &[usize],
-    width: usize,
-    dirs: usize,
 ) -> (usize, usize) {
     let mut distance = vec![(usize::MAX, Vec::new()); adj.len()];
     let mut heap = BinaryHeap::new();
 
     distance[start].0 = 0;
-    heap.push(State { dist: 0, id: start });
+    heap.push(Reverse((0, start)));
 
-    while let Some(State { dist, id }) = heap.pop() {
+    while let Some(Reverse((dist, id))) = heap.pop() {
         if dist > distance[id].0 {
             continue;
         }
 
-        for (next, cost) in &adj[id] {
-            let next = State {
-                dist: dist + *cost,
-                id: *next,
-            };
+        for &(next, cost) in &adj[id] {
+            let next_dist = dist + cost;
 
-            if next.dist == distance[next.id].0 {
-                distance[next.id].1.push(id);
-            } else if next.dist < distance[next.id].0 {
-                heap.push(next);
-                distance[next.id].0 = next.dist;
-                distance[next.id].1.clear();
-                distance[next.id].1.push(id);
+            if next_dist == distance[next].0 {
+                distance[next].1.push(id);
+            } else if next_dist < distance[next].0 {
+                heap.push(Reverse((next_dist, next)));
+                distance[next].0 = next_dist;
+                distance[next].1.clear();
+                distance[next].1.push(id);
             }
         }
     }
@@ -184,10 +91,9 @@ fn run_exhaustive_dijkstra(
     let mut tiles_on_shortest_paths = HashSet::new();
 
     while let Some(&tile) = tiles_to_explore.pop() {
-        let coord = id_to_coord(tile, width, dirs);
-        if !explored.contains(&tile) {
-            explored.insert(tile);
-            tiles_on_shortest_paths.insert(coord);
+        if explored.insert(tile) {
+            // Nodes of the same position only differ in direction
+            tiles_on_shortest_paths.insert(tile / Direction::ALL4.len());
             tiles_to_explore.extend(&distance[tile].1);
         }
     }

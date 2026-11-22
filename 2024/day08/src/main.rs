@@ -1,4 +1,5 @@
 use aoc_utils::Solution;
+use aoc_utils::grid::Grid;
 use itertools::Itertools;
 use num::Integer;
 use std::collections::HashMap;
@@ -11,24 +12,18 @@ impl Solution for Day08 {
     type Output2 = usize;
 
     fn process(input: &str) -> Self::Input<'_> {
-        let map: Vec<Vec<_>> = input
-            .lines()
-            .filter(|line| !line.is_empty())
-            .map(|line| line.chars().collect())
-            .collect();
+        let map = Grid::parse(input, |c| c);
 
-        let dimensions = (map[0].len() as i32, map.len() as i32);
+        let dimensions = (map.width() as i32, map.height() as i32);
 
         let mut antennas_map: HashMap<char, Vec<(i32, i32)>> = HashMap::new();
 
-        for (y, row) in map.iter().enumerate() {
-            for (x, &cell) in row.iter().enumerate() {
-                if cell != '.' {
-                    antennas_map
-                        .entry(cell)
-                        .or_default()
-                        .push((x as i32, y as i32));
-                }
+        for (pos, &cell) in map.iter() {
+            if cell != '.' {
+                antennas_map
+                    .entry(cell)
+                    .or_default()
+                    .push((pos.x as i32, pos.y as i32));
             }
         }
 

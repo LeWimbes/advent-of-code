@@ -1,36 +1,24 @@
 use std::collections::{HashSet, VecDeque};
 
 use aoc_utils::Solution;
+use aoc_utils::grid::{Direction, Grid, Pos};
 use nalgebra::{Matrix3, Vector3};
 
 struct Day21;
 
 impl Solution for Day21 {
-    type Input<'a> = (Vec<Vec<bool>>, (isize, isize));
+    type Input<'a> = (Grid<bool>, (isize, isize));
     type Output1 = usize;
     type Output2 = usize;
 
     fn process(input: &str) -> Self::Input<'_> {
-        let mut start = (0, 0);
-        let map = input
-            .lines()
-            .enumerate()
-            .map(|(y, line)| {
-                line.chars()
-                    .enumerate()
-                    .map(|(x, char)| match char {
-                        'S' => {
-                            start = (x as isize, y as isize);
-                            true
-                        }
-                        '.' => true,
-                        _ => false,
-                    })
-                    .collect()
-            })
-            .collect();
+        let map = Grid::parse(input, |c| c);
+        let start = map.find(&'S').unwrap();
 
-        (map, start)
+        (
+            map.map(|&c| matches!(c, 'S' | '.')),
+            (start.x as isize, start.y as isize),
+        )
     }
 
     fn part1(map_start: &Self::Input<'_>) -> Self::Output1 {
@@ -48,27 +36,19 @@ impl Solution for Day21 {
 
 aoc_utils::run!(2023, 21, Day21);
 
-fn to_map_coord(coord: &(isize, isize), upper_bounds: &(isize, isize)) -> (usize, usize) {
-    let x = coord.0.rem_euclid(upper_bounds.0) as usize;
-    let y = coord.1.rem_euclid(upper_bounds.1) as usize;
+/// The neighbours of `coord` that are garden plots, on the infinitely repeating map.
+fn get_neighbors(coord: (isize, isize), map: &Grid<bool>) -> impl Iterator<Item = (isize, isize)> {
+    let (width, height) = (map.width() as isize, map.height() as isize);
 
-    (x, y)
-}
-
-fn get_neighbors(coord: &(isize, isize), map: &[Vec<bool>]) -> Vec<(isize, isize)> {
-    let upper_bounds = (map[0].len() as isize, map.len() as isize);
-    let changes_x = [0, -1, 0, 1];
-    let changes_y = [-1, 0, 1, 0];
-
-    changes_x
-        .iter()
-        .zip(changes_y)
-        .filter_map(|(x_change, y_change)| {
-            let new_coord = (coord.0 - x_change, coord.1 - y_change);
-            let map_coord = to_map_coord(&new_coord, &upper_bounds);
-            map[map_coord.1][map_coord.0].then_some(new_coord)
+    Direction::ALL4
+        .into_iter()
+        .map(move |direction| {
+            let (dx, dy) = direction.offset();
+            (coord.0 + dx, coord.1 + dy)
         })
-        .collect()
+        .filter(move |&(x, y)| {
+            map[Pos::new(x.rem_euclid(width) as usize, y.rem_euclid(height) as usize)]
+        })
 }
 
 fn count_reachable_tiles((map, start): &<Day21 as Solution>::Input<'_>, steps: usize) -> usize {
@@ -90,7 +70,7 @@ fn count_reachable_tiles((map, start): &<Day21 as Solution>::Input<'_>, steps: u
         }
 
         let new_cost = cost + 1;
-        for neighbor in get_neighbors(&coord, map) {
+        for neighbor in get_neighbors(coord, map) {
             if !visited.contains(&neighbor) {
                 queue.push_back((neighbor, new_cost));
                 visited.insert(neighbor);
@@ -110,14 +90,14 @@ fn count_reachable_tiles_quadratic(
 ) -> usize {
     let (map, _start) = map_start;
 
-    if steps <= map.len() {
+    if steps <= map.height() {
         return count_reachable_tiles(map_start, steps);
     }
 
-    let x0 = steps % map.len();
-    let x1 = x0 + map.len();
-    let x2 = x1 + map.len();
-    let n = (steps - x0) / map.len();
+    let x0 = steps % map.height();
+    let x1 = x0 + map.height();
+    let x2 = x1 + map.height();
+    let n = (steps - x0) / map.height();
 
     let y0 = count_reachable_tiles(map_start, x0) as f64;
     let y1 = count_reachable_tiles(map_start, x1) as f64;

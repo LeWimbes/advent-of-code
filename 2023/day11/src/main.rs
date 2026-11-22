@@ -1,4 +1,5 @@
 use aoc_utils::Solution;
+use aoc_utils::grid::{Grid, Pos};
 use itertools::Itertools;
 
 struct Day11;
@@ -9,47 +10,35 @@ impl Solution for Day11 {
     type Output2 = u64;
 
     fn process(input: &str) -> Self::Input<'_> {
-        let image: Vec<Vec<char>> = input.lines().map(|line| line.chars().collect()).collect();
+        let image = Grid::parse(input, |c| c);
 
-        let empty_rows: Vec<usize> = (0..image.len())
-            .rev()
-            .filter(|y| image[*y].iter().all(|char| char == &'.'))
+        let empty_rows: Vec<usize> = (0..image.height())
+            .filter(|&y| image.row(y).iter().all(|&c| c == '.'))
             .collect();
-        let empty_cols: Vec<usize> = (0..image[0].len())
-            .rev()
-            .filter(|x| image.iter().map(|row| row[*x]).all(|char| char == '.'))
+        let empty_cols: Vec<usize> = (0..image.width())
+            .filter(|&x| image.column(x).all(|&c| c == '.'))
             .collect();
 
-        let galaxies: Vec<_> =
-            image
-                .iter()
-                .enumerate()
-                .flat_map(|(y, row)| {
-                    row.iter().enumerate().filter_map(move |(x, char)| {
-                        if char == &'#' { Some((x, y)) } else { None }
-                    })
-                })
-                .collect();
+        let galaxies: Vec<Pos> = image
+            .iter()
+            .filter(|&(_pos, &c)| c == '#')
+            .map(|(pos, _c)| pos)
+            .collect();
 
         galaxies
             .iter()
-            .combinations(2)
-            .map(|galaxies| {
-                let (x1, y1) = *galaxies[0];
-                let (x2, y2) = *galaxies[1];
-
-                let base_distance =
-                    (((x2 as i64) - (x1 as i64)).abs() + ((y2 as i64) - (y1 as i64)).abs()) as u64;
-                let crossings = (empty_rows
+            .tuple_combinations()
+            .map(|(&a, &b)| {
+                let crossings = empty_rows
                     .iter()
-                    .filter(|row| (y1.min(y2) + 1..y1.max(y2)).contains(row))
+                    .filter(|&&y| a.y.min(b.y) < y && y < a.y.max(b.y))
                     .count()
                     + empty_cols
                         .iter()
-                        .filter(|row| (x1.min(x2) + 1..x1.max(x2)).contains(row))
-                        .count()) as u64;
+                        .filter(|&&x| a.x.min(b.x) < x && x < a.x.max(b.x))
+                        .count();
 
-                (base_distance, crossings)
+                (a.manhattan(b) as u64, crossings as u64)
             })
             .collect()
     }

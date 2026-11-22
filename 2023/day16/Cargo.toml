@@ -8,7 +8,6 @@ test-answers = []
 
 [dependencies]
 aoc-utils.workspace = true
-itertools.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true

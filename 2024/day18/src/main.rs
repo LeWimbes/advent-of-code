@@ -1,4 +1,5 @@
 use aoc_utils::Solution;
+use aoc_utils::grid::{Grid, Pos};
 use std::cmp::Ordering;
 use std::collections::VecDeque;
 use winnow::ascii::{dec_uint, multispace0, multispace1};
@@ -8,7 +9,7 @@ use winnow::{Parser, Result};
 struct Day18;
 
 impl Solution for Day18 {
-    type Input<'a> = Vec<(usize, usize)>;
+    type Input<'a> = Vec<Pos>;
     type Output1 = u64;
     type Output2 = String;
 
@@ -31,47 +32,44 @@ aoc_utils::run!(2024, 18, Day18);
 
 fn parse_input<'a>(input: &mut &str) -> Result<<Day18 as Solution>::Input<'a>> {
     terminated(
-        separated(1.., separated_pair(dec_uint, ',', dec_uint), multispace1),
+        separated(
+            1..,
+            separated_pair(dec_uint, ',', dec_uint).map(|(x, y)| Pos::new(x, y)),
+            multispace1,
+        ),
         multispace0,
     )
     .parse_next(input)
 }
 
 fn bfs(bytes: &<Day18 as Solution>::Input<'_>, size: usize, byte_count: usize) -> Option<u64> {
-    let max = size - 1;
+    let end = Pos::new(size - 1, size - 1);
 
-    let mut map = vec![vec![true; size]; size];
+    let mut map = Grid::new(size, size, true);
 
-    for byte in bytes.iter().take(byte_count) {
-        map[byte.1][byte.0] = false;
+    for &byte in bytes.iter().take(byte_count) {
+        map[byte] = false;
     }
 
-    let mut visited = vec![vec![false; size]; size];
+    let mut visited = map.map(|_| false);
 
     let mut queue = VecDeque::new();
-    queue.push_back(((0, 0), 0));
+    queue.push_back((Pos::new(0, 0), 0));
 
-    while let Some(((x, y), steps)) = queue.pop_front() {
-        if visited[y][x] {
+    while let Some((pos, steps)) = queue.pop_front() {
+        if visited[pos] {
             continue;
         }
-        visited[y][x] = true;
+        visited[pos] = true;
 
-        if x == max && y == max {
+        if pos == end {
             return Some(steps);
         }
 
-        if x > 0 && map[y][x - 1] {
-            queue.push_back(((x - 1, y), steps + 1));
-        }
-        if y > 0 && map[y - 1][x] {
-            queue.push_back(((x, y - 1), steps + 1));
-        }
-        if x < max && map[y][x + 1] {
-            queue.push_back(((x + 1, y), steps + 1));
-        }
-        if y < max && map[y + 1][x] {
-            queue.push_back(((x, y + 1), steps + 1));
+        for next in map.neighbors4(pos) {
+            if map[next] {
+                queue.push_back((next, steps + 1));
+            }
         }
     }
 
@@ -97,7 +95,7 @@ fn part2_parameterized(bytes: &<Day18 as Solution>::Input<'_>, size: usize) -> S
 
     let pos = limit.unwrap_err();
 
-    format!("{},{}", bytes[pos - 1].0, bytes[pos - 1].1)
+    bytes[pos - 1].to_string()
 }
 
 #[cfg(test)]

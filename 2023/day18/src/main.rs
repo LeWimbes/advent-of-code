@@ -1,4 +1,5 @@
 use aoc_utils::Solution;
+use aoc_utils::grid::Direction;
 use regex::Regex;
 
 struct Day18;
@@ -16,19 +17,9 @@ impl Solution for Day18 {
         let instructions: Vec<Instruction> = re
             .captures_iter(input)
             .map(|caps| {
-                let direction1 = caps["direction1"]
-                    .chars()
-                    .next()
-                    .unwrap()
-                    .try_into()
-                    .unwrap();
+                let direction1 = parse_direction(&caps["direction1"]);
                 let meters1 = caps["meters1"].parse().unwrap();
-                let direction2 = caps["direction2"]
-                    .chars()
-                    .next()
-                    .unwrap()
-                    .try_into()
-                    .unwrap();
+                let direction2 = parse_direction(&caps["direction2"]);
                 let meters2 = i64::from_str_radix(&caps["meters2"], 16).unwrap();
                 Instruction {
                     direction1,
@@ -47,21 +38,9 @@ impl Solution for Day18 {
         coords2.push(current2);
 
         for instruction in instructions.iter().take(instructions.len() - 1) {
-            let meters = instruction.meters1;
-            match instruction.direction1 {
-                Direction::North => current1.1 -= meters,
-                Direction::West => current1.0 -= meters,
-                Direction::South => current1.1 += meters,
-                Direction::East => current1.0 += meters,
-            }
+            current1 = dig(current1, instruction.direction1, instruction.meters1);
             coords1.push(current1);
-            let meters = instruction.meters2;
-            match instruction.direction2 {
-                Direction::North => current2.1 -= meters,
-                Direction::West => current2.0 -= meters,
-                Direction::South => current2.1 += meters,
-                Direction::East => current2.0 += meters,
-            }
+            current2 = dig(current2, instruction.direction2, instruction.meters2);
             coords2.push(current2);
         }
 
@@ -79,26 +58,20 @@ impl Solution for Day18 {
 
 aoc_utils::run!(2023, 18, Day18);
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-enum Direction {
-    North = 3,
-    West = 2,
-    South = 1,
-    East = 0,
+fn parse_direction(direction: &str) -> Direction {
+    match direction {
+        "U" | "3" => Direction::North,
+        "D" | "1" => Direction::South,
+        "L" | "2" => Direction::West,
+        "R" | "0" => Direction::East,
+        _ => panic!("Unknown direction: {direction}"),
+    }
 }
 
-impl TryFrom<char> for Direction {
-    type Error = ();
-
-    fn try_from(value: char) -> Result<Self, Self::Error> {
-        match value {
-            'U' | '3' => Ok(Direction::North),
-            'D' | '1' => Ok(Direction::South),
-            'L' | '2' => Ok(Direction::West),
-            'R' | '0' => Ok(Direction::East),
-            _ => Err(()),
-        }
-    }
+/// The position after digging `meters` from `(x, y)` in `direction`.
+fn dig((x, y): (i64, i64), direction: Direction, meters: i64) -> (i64, i64) {
+    let (dx, dy) = direction.offset();
+    (x + dx as i64 * meters, y + dy as i64 * meters)
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

@@ -3881,7 +3881,6 @@ name = "y2023-d16"
 version = "0.1.0"
 dependencies = [
  "aoc-utils",
- "itertools",
  "rstest",
 ]
 

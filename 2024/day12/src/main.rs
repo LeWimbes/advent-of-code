@@ -1,37 +1,18 @@
 use aoc_utils::Solution;
+use aoc_utils::grid::{Direction, Grid, Pos};
 use itertools::Itertools;
-use std::cmp::Ordering;
 use std::collections::{HashSet, VecDeque};
 
 struct Day12;
 
 impl Solution for Day12 {
-    type Input<'a> = Vec<(Vec<(usize, usize)>, Vec<((usize, usize), Direction)>)>;
+    /// Each region's cells, and its perimeter as the cells on the edge with the direction they face
+    type Input<'a> = Vec<(Vec<Pos>, Vec<(Pos, Direction)>)>;
     type Output1 = usize;
     type Output2 = usize;
 
     fn process(input: &str) -> Self::Input<'_> {
-        let map: Vec<Vec<_>> = input
-            .lines()
-            .filter(|line| !line.is_empty())
-            .map(|line| line.chars().collect())
-            .collect();
-
-        let rows = map.len();
-        let cols = if rows > 0 { map[0].len() } else { 0 };
-
-        let new_rows = rows + 2;
-        let new_cols = cols + 2;
-
-        let mut enhanced_map = vec![vec!['.'; new_cols]; new_rows];
-
-        for i in 0..rows {
-            for j in 0..cols {
-                enhanced_map[i + 1][j + 1] = map[i][j];
-            }
-        }
-
-        get_areas_perimeters(&enhanced_map)
+        get_areas_perimeters(&Grid::parse(input, |c| c))
     }
 
     fn part1(areas_perimeters: &Self::Input<'_>) -> Self::Output1 {
@@ -45,22 +26,17 @@ impl Solution for Day12 {
         areas_perimeters
             .iter()
             .map(|(area, perimeter)| {
-                let mut sides: Vec<((&usize, &usize), &Direction)> = Vec::new();
+                let mut sides: Vec<(Pos, Direction)> = Vec::new();
 
-                for ((x, y), dir) in perimeter {
+                for &(pos, dir) in perimeter {
                     let side = sides
                         .iter()
-                        .find_position(|((s_x, s_y), s_dir)| {
-                            dir == *s_dir
-                                && ((y == *s_y && s_x.abs_diff(*x) == 1)
-                                    || (x == *s_x && s_y.abs_diff(*y) == 1))
-                        })
-                        .map(|(i, _)| i);
+                        .position(|&(s_pos, s_dir)| dir == s_dir && pos.manhattan(s_pos) == 1);
 
                     if let Some(side) = side {
-                        sides[side] = ((x, y), dir);
+                        sides[side] = (pos, dir);
                     } else {
-                        sides.push(((x, y), dir));
+                        sides.push((pos, dir));
                     }
                 }
 
@@ -72,22 +48,13 @@ impl Solution for Day12 {
 
 aoc_utils::run!(2024, 12, Day12);
 
-#[derive(Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Clone, Copy)]
-enum Direction {
-    North,
-    East,
-    South,
-    West,
-}
-
-fn get_areas_perimeters(map: &[Vec<char>]) -> <Day12 as Solution>::Input<'_> {
-    let mut unvisited = (1..map[0].len() - 1)
-        .cartesian_product(1..map.len() - 1)
-        .collect::<HashSet<_>>();
+fn get_areas_perimeters(map: &Grid<char>) -> <Day12 as Solution>::Input<'_> {
+    let mut unvisited = map.positions().collect::<HashSet<_>>();
 
     let mut areas_perimeters = Vec::new();
 
     while let Some(&start) = unvisited.iter().next() {
+        let region = map[start];
         let mut area = HashSet::new();
         let mut perimeter = HashSet::new();
 
@@ -97,65 +64,28 @@ fn get_areas_perimeters(map: &[Vec<char>]) -> <Day12 as Solution>::Input<'_> {
         unvisited.remove(&start);
 
         while let Some(pos) = queue.pop_front() {
-            let region = map[pos.1][pos.0];
-
-            let next = vec![
-                ((pos.0, pos.1 - 1), Direction::North),
-                ((pos.0 + 1, pos.1), Direction::East),
-                ((pos.0, pos.1 + 1), Direction::South),
-                ((pos.0 - 1, pos.1), Direction::West),
-            ];
-
-            for (next_pos, direction) in next {
-                let new_region = map[next_pos.1][next_pos.0];
-
-                if new_region == region {
-                    if unvisited.remove(&next_pos) {
-                        queue.push_back(next_pos);
-                        area.insert(next_pos);
+            for direction in Direction::ALL4 {
+                match map.step(pos, direction) {
+                    Some(next_pos) if map[next_pos] == region => {
+                        if unvisited.remove(&next_pos) {
+                            queue.push_back(next_pos);
+                            area.insert(next_pos);
+                        }
                     }
-                } else {
-                    perimeter.insert((next_pos, direction));
+                    _ => {
+                        perimeter.insert((pos, direction));
+                    }
                 }
             }
         }
 
-        let area = area
-            .into_iter()
-            .sorted_by(|(x1, y1), (x2, y2)| {
-                let y_cmp = y1.cmp(y2);
-                if y_cmp == Ordering::Equal {
-                    x1.cmp(x2)
-                } else {
-                    y_cmp
-                }
-            })
-            .collect();
-        let perimeter = perimeter
-            .into_iter()
-            .sorted_by(|((x1, y1), dir1), ((x2, y2), dir2)| {
-                let dir_cmp = dir1.cmp(dir2);
-                if dir_cmp == Ordering::Equal {
-                    let y_cmp = y1.cmp(y2);
-                    if y_cmp == Ordering::Equal {
-                        x1.cmp(x2)
-                    } else {
-                        y_cmp
-                    }
-                } else {
-                    dir_cmp
-                }
-            })
-            .collect();
-
-        areas_perimeters.push((map[start.1][start.0], (area, perimeter)));
+        areas_perimeters.push((
+            area.into_iter().collect(),
+            perimeter.into_iter().sorted().collect(),
+        ));
     }
 
     areas_perimeters
-        .into_iter()
-        .sorted_by_key(|&(region, _)| region)
-        .map(|(_region, area_perimeter)| area_perimeter)
-        .collect()
 }
 
 #[cfg(test)]

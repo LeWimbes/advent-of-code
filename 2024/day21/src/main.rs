@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 use aoc_utils::Solution;
+use aoc_utils::grid::{Direction, Grid, Pos};
 
 struct Day21;
 
@@ -93,51 +94,57 @@ impl KeyIndex for DirectionalKey {
     }
 }
 
+impl From<Direction> for DirectionalKey {
+    fn from(direction: Direction) -> Self {
+        match direction {
+            Direction::North => DirectionalKey::Up,
+            Direction::East => DirectionalKey::Right,
+            Direction::South => DirectionalKey::Down,
+            Direction::West => DirectionalKey::Left,
+        }
+    }
+}
+
 fn find_shortest_paths_bfs<T>(
-    grid: &[Vec<Option<T>>],
-    from: (usize, usize),
-    to: (usize, usize),
+    grid: &Grid<Option<T>>,
+    from: Pos,
+    to: Pos,
 ) -> Vec<Vec<DirectionalKey>> {
-    let mut distance_parents =
-        vec![vec![(usize::MAX, Vec::<(usize, usize)>::new()); grid[0].len()]; grid.len()];
+    // The distance to each key, and the keys and directions it's reached from on shortest paths
+    let mut distance_parents = grid.map(|_| (usize::MAX, Vec::<(Pos, Direction)>::new()));
     let mut queue = VecDeque::new();
     queue.push_back(from);
-    distance_parents[from.1][from.0] = (0, Vec::new());
+    distance_parents[from] = (0, Vec::new());
 
-    while let Some((x, y)) = queue.pop_front() {
-        if (x, y) == to {
+    while let Some(pos) = queue.pop_front() {
+        if pos == to {
             continue;
         }
 
-        let current_distance = distance_parents[y][x].0;
+        let new_distance = distance_parents[pos].0 + 1;
 
-        for (dx, dy) in [(0, 1), (0, -1), (1, 0), (-1, 0)] {
-            let new_x = x as i32 + dx;
-            let new_y = y as i32 + dy;
-            let new = (new_x as usize, new_y as usize);
-
-            if grid[new.1][new.0].is_none() {
+        for direction in Direction::ALL4 {
+            let Some(new) = grid.step(pos, direction) else {
+                continue;
+            };
+            if grid[new].is_none() {
                 continue;
             }
 
-            let old_distance = distance_parents[new.1][new.0].0;
-            let new_distance = current_distance + 1;
+            let old_distance = distance_parents[new].0;
 
             if new_distance > old_distance {
                 continue;
             }
 
             if old_distance == usize::MAX {
-                distance_parents[new.1][new.0].0 = new_distance;
-                distance_parents[new.1][new.0].1.push((x, y));
+                distance_parents[new].0 = new_distance;
+                distance_parents[new].1.push((pos, direction));
                 queue.push_back(new);
             } else if old_distance == new_distance {
-                distance_parents[new.1][new.0].1.push((x, y));
+                distance_parents[new].1.push((pos, direction));
             } else {
                 unreachable!("This actually shouldn't happen");
-                // distance_parents[new.1][new.0].0 = new_distance;
-                // distance_parents[new.1][new.0].1.clear();
-                // distance_parents[new.1][new.0].1.push((x, y));
             }
         }
     }
@@ -154,22 +161,10 @@ fn find_shortest_paths_bfs<T>(
             continue;
         }
 
-        let parents = &distance_parents[cur.1][cur.0].1;
-        for &(px, py) in parents {
-            let dx = cur.0 as isize - px as isize;
-            let dy = cur.1 as isize - py as isize;
-
-            let step = match (dx, dy) {
-                (0, 1) => DirectionalKey::Down,
-                (0, -1) => DirectionalKey::Up,
-                (1, 0) => DirectionalKey::Right,
-                (-1, 0) => DirectionalKey::Left,
-                _ => unreachable!("Invalid parent -> child step"),
-            };
-
+        for &(parent, direction) in &distance_parents[cur].1 {
             let mut new_path = path_so_far.clone();
-            new_path.push(step);
-            stack.push(((px, py), new_path));
+            new_path.push(DirectionalKey::from(direction));
+            stack.push((parent, new_path));
         }
     }
 
@@ -177,28 +172,21 @@ fn find_shortest_paths_bfs<T>(
 }
 
 fn find_all_shortest_paths<T: Eq + Copy + KeyIndex>(
-    grid: &[Vec<Option<T>>],
+    grid: &Grid<Option<T>>,
 ) -> Vec<Vec<Vec<Vec<DirectionalKey>>>> {
     let mut paths = vec![vec![Vec::new(); T::count()]; T::count()];
+    let keys = grid
+        .iter()
+        .filter_map(|(pos, key)| key.map(|key| (pos, key)))
+        .collect::<Vec<_>>();
 
-    for (y1, row1) in grid.iter().enumerate() {
-        for (x1, key1) in row1.iter().enumerate() {
-            if let Some(key1) = key1 {
-                let key1_idx = key1.as_index();
-                for (y2, row2) in grid.iter().enumerate() {
-                    for (x2, key2) in row2.iter().enumerate() {
-                        if let Some(key2) = key2 {
-                            let key2_idx = key2.as_index();
-                            if key1 == key2 {
-                                paths[key1_idx][key2_idx] = vec![vec![DirectionalKey::A]];
-                                continue;
-                            }
-                            paths[key1_idx][key2_idx] =
-                                find_shortest_paths_bfs(grid, (x1, y1), (x2, y2));
-                        }
-                    }
-                }
-            }
+    for &(pos1, key1) in &keys {
+        for &(pos2, key2) in &keys {
+            paths[key1.as_index()][key2.as_index()] = if key1 == key2 {
+                vec![vec![DirectionalKey::A]]
+            } else {
+                find_shortest_paths_bfs(grid, pos1, pos2)
+            };
         }
     }
 
@@ -212,38 +200,9 @@ struct NumericKeypad {
 
 impl NumericKeypad {
     fn new() -> Self {
-        let grid = vec![
-            vec![None, None, None, None, None],
-            vec![
-                None,
-                Some(NumericalKey::Seven),
-                Some(NumericalKey::Eight),
-                Some(NumericalKey::Nine),
-                None,
-            ],
-            vec![
-                None,
-                Some(NumericalKey::Four),
-                Some(NumericalKey::Five),
-                Some(NumericalKey::Six),
-                None,
-            ],
-            vec![
-                None,
-                Some(NumericalKey::One),
-                Some(NumericalKey::Two),
-                Some(NumericalKey::Three),
-                None,
-            ],
-            vec![
-                None,
-                None,
-                Some(NumericalKey::Zero),
-                Some(NumericalKey::A),
-                None,
-            ],
-            vec![None, None, None, None, None],
-        ];
+        let grid = Grid::parse("789\n456\n123\n 0A", |c| {
+            (c != ' ').then(|| NumericalKey::from_char(c))
+        });
         Self {
             paths: find_all_shortest_paths(&grid),
         }
@@ -257,24 +216,14 @@ struct DirectionalKeypad {
 
 impl DirectionalKeypad {
     fn new() -> Self {
-        let grid = vec![
-            vec![None, None, None, None, None],
-            vec![
-                None,
-                None,
-                Some(DirectionalKey::Up),
-                Some(DirectionalKey::A),
-                None,
-            ],
-            vec![
-                None,
-                Some(DirectionalKey::Left),
-                Some(DirectionalKey::Down),
-                Some(DirectionalKey::Right),
-                None,
-            ],
-            vec![None, None, None, None, None],
-        ];
+        let grid = Grid::parse(" ^A\n<v>", |c| match c {
+            '^' => Some(DirectionalKey::Up),
+            'A' => Some(DirectionalKey::A),
+            '<' => Some(DirectionalKey::Left),
+            'v' => Some(DirectionalKey::Down),
+            '>' => Some(DirectionalKey::Right),
+            _ => None,
+        });
         Self {
             paths: find_all_shortest_paths(&grid),
         }

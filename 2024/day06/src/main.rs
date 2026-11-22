@@ -1,198 +1,82 @@
 use aoc_utils::Solution;
+use aoc_utils::grid::{Direction, Grid, Pos};
 
 struct Day06;
 
 impl Solution for Day06 {
-    type Input<'a> = (Vec<Vec<Field>>, Agent);
+    type Input<'a> = (Grid<bool>, Agent);
     type Output1 = usize;
     type Output2 = usize;
 
     fn process(input: &str) -> Self::Input<'_> {
-        let map: Vec<Vec<_>> = input
-            .lines()
-            .filter(|line| !line.is_empty())
-            .map(|line| line.chars().collect())
-            .collect();
+        let map = Grid::parse(input, |c| c);
 
-        let rows = map.len();
-        let cols = if rows > 0 { map[0].len() } else { 0 };
+        let agent = map
+            .iter()
+            .find_map(|(pos, &c)| {
+                let direction = match c {
+                    '^' => Direction::North,
+                    '>' => Direction::East,
+                    'v' => Direction::South,
+                    '<' => Direction::West,
+                    _ => return None,
+                };
+                Some(Agent { pos, direction })
+            })
+            .expect("No guard found");
 
-        let new_rows = rows + 2;
-        let new_cols = cols + 2;
-
-        let mut new_map = vec![vec![Field::new(FieldType::Border); new_cols]; new_rows];
-        let mut agent = Agent::new(0, 0, Direction::Up);
-
-        for y in 0..rows {
-            for x in 0..cols {
-                match map[y][x] {
-                    '.' => new_map[y + 1][x + 1] = Field::new(FieldType::Floor),
-                    '#' => new_map[y + 1][x + 1] = Field::new(FieldType::Object),
-                    '^' => {
-                        new_map[y + 1][x + 1] = Field::new(FieldType::Floor);
-                        new_map[y + 1][x + 1].visited[Direction::Up as usize] = true;
-                        agent = Agent::new(x + 1, y + 1, Direction::Up);
-                    }
-                    '>' => {
-                        new_map[y + 1][x + 1] = Field::new(FieldType::Floor);
-                        new_map[y + 1][x + 1].visited[Direction::Right as usize] = true;
-                        agent = Agent::new(x + 1, y + 1, Direction::Right);
-                    }
-                    'v' => {
-                        new_map[y + 1][x + 1] = Field::new(FieldType::Floor);
-                        new_map[y + 1][x + 1].visited[Direction::Down as usize] = true;
-                        agent = Agent::new(x + 1, y + 1, Direction::Down);
-                    }
-                    '<' => {
-                        new_map[y + 1][x + 1] = Field::new(FieldType::Floor);
-                        new_map[y + 1][x + 1].visited[Direction::Left as usize] = true;
-                        agent = Agent::new(x + 1, y + 1, Direction::Left);
-                    }
-                    _ => panic!("Invalid character in input"),
-                }
-            }
-        }
-
-        (new_map, agent)
+        (map.map(|&c| c == '#'), agent)
     }
 
-    fn part1((map, agent): &Self::Input<'_>) -> Self::Output1 {
-        let mut map = map.clone();
-        let mut agent = *agent;
-
-        loop {
-            match agent.step(&mut map) {
-                Ok(()) => {}
-                Err(AgentError::AlreadyOnBorder) => panic!("Shouldn't be standing on border"),
-                Err(AgentError::EncounteredObject) => agent.rotate(),
-                Err(AgentError::SteppedOnBorder) => break,
-                Err(AgentError::EncounteredLoop) => panic!("Shouldn't encounter loop"),
-            }
-        }
-
-        map.iter()
-            .flatten()
-            .filter(|field| field.visited.iter().any(|&visited| visited))
+    fn part1((obstructions, agent): &Self::Input<'_>) -> Self::Output1 {
+        walk(obstructions, *agent)
+            .expect("Shouldn't encounter loop")
+            .iter()
+            .filter(|&(_pos, &directions)| directions != 0)
             .count()
     }
 
-    fn part2((map, agent): &Self::Input<'_>) -> Self::Output2 {
-        let mut loops = 0;
+    fn part2((obstructions, agent): &Self::Input<'_>) -> Self::Output2 {
+        let mut with_new = obstructions.clone();
 
-        for y in 1..map.len() - 1 {
-            for x in 1..map[0].len() - 1 {
-                let mut map = map.clone();
-                let mut agent = *agent;
-
-                map[y][x] = Field::new(FieldType::Object);
-
-                loop {
-                    match agent.step(&mut map) {
-                        Ok(()) => {}
-                        Err(AgentError::AlreadyOnBorder) => {
-                            panic!("Shouldn't be standing on border")
-                        }
-                        Err(AgentError::EncounteredObject) => agent.rotate(),
-                        Err(AgentError::SteppedOnBorder) => break,
-                        Err(AgentError::EncounteredLoop) => {
-                            loops += 1;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        loops
+        obstructions
+            .positions()
+            .filter(|&pos| pos != agent.pos && !obstructions[pos])
+            .filter(|&pos| {
+                with_new[pos] = true;
+                let is_loop = walk(&with_new, *agent).is_none();
+                with_new[pos] = false;
+                is_loop
+            })
+            .count()
     }
 }
 
 aoc_utils::run!(2024, 6, Day06);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Field {
-    field_type: FieldType,
-    visited: [bool; 4],
-}
-
-impl Field {
-    fn new(field_type: FieldType) -> Field {
-        Self {
-            field_type,
-            visited: [false; 4],
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FieldType {
-    Border,
-    Floor,
-    Object,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Direction {
-    Up = 0,
-    Right = 1,
-    Down = 2,
-    Left = 3,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Agent {
-    x: usize,
-    y: usize,
+    pos: Pos,
     direction: Direction,
 }
 
-enum AgentError {
-    AlreadyOnBorder,
-    EncounteredObject,
-    SteppedOnBorder,
-    EncounteredLoop,
-}
+/// Walk until the guard leaves the map and
+/// return the directions it faced on each position as bit flags,
+/// or `None` if it ends up in a loop.
+fn walk(obstructions: &Grid<bool>, mut agent: Agent) -> Option<Grid<u8>> {
+    let mut visited = Grid::new(obstructions.width(), obstructions.height(), 0u8);
 
-impl Agent {
-    fn new(x: usize, y: usize, direction: Direction) -> Self {
-        Self { x, y, direction }
-    }
-
-    fn rotate(&mut self) {
-        match self.direction {
-            Direction::Up => self.direction = Direction::Right,
-            Direction::Right => self.direction = Direction::Down,
-            Direction::Down => self.direction = Direction::Left,
-            Direction::Left => self.direction = Direction::Up,
+    loop {
+        let flag = 1 << agent.direction as u8;
+        if visited[agent.pos] & flag != 0 {
+            return None;
         }
-    }
+        visited[agent.pos] |= flag;
 
-    fn step(&mut self, map: &mut [Vec<Field>]) -> Result<(), AgentError> {
-        if map[self.y][self.x].field_type == FieldType::Border {
-            return Err(AgentError::AlreadyOnBorder);
-        }
-
-        let (next_x, next_y) = match self.direction {
-            Direction::Up => (self.x, self.y - 1),
-            Direction::Right => (self.x + 1, self.y),
-            Direction::Down => (self.x, self.y + 1),
-            Direction::Left => (self.x - 1, self.y),
-        };
-
-        if map[next_y][next_x].field_type == FieldType::Object {
-            return Err(AgentError::EncounteredObject);
-        }
-
-        self.x = next_x;
-        self.y = next_y;
-
-        if map[self.y][self.x].visited[self.direction as usize] {
-            Err(AgentError::EncounteredLoop)
-        } else if map[next_y][next_x].field_type == FieldType::Border {
-            Err(AgentError::SteppedOnBorder)
-        } else {
-            map[self.y][self.x].visited[self.direction as usize] = true;
-            Ok(())
+        match obstructions.step(agent.pos, agent.direction) {
+            None => return Some(visited),
+            Some(next) if obstructions[next] => agent.direction = agent.direction.turn_right(),
+            Some(next) => agent.pos = next,
         }
     }
 }

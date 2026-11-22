@@ -1,6 +1,7 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 
 use aoc_utils::Solution;
+use aoc_utils::grid::{Direction, Grid, Pos};
 use itertools::Itertools;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
@@ -12,16 +13,8 @@ impl Solution for Day23 {
     type Output2 = usize;
 
     fn process(input: &str) -> Self::Input<'_> {
-        let map_with_slopes: Vec<Vec<char>> =
-            input.lines().map(|line| line.chars().collect()).collect();
-        let simple_map: Vec<Vec<char>> = input
-            .lines()
-            .map(|line| {
-                line.chars()
-                    .map(|char| if char == '#' { '#' } else { '.' })
-                    .collect()
-            })
-            .collect();
+        let map_with_slopes = Grid::parse(input, |c| c);
+        let simple_map = map_with_slopes.map(|&c| if c == '#' { '#' } else { '.' });
 
         (
             generate_graph(&map_with_slopes),
@@ -222,41 +215,33 @@ impl Graph {
     }
 }
 
-fn generate_graph(map: &[Vec<char>]) -> Graph {
-    let bounds = (map[0].len(), map.len());
-
+fn generate_graph(map: &Grid<char>) -> Graph {
     // The iteration order ensures that the first node (0) is the start node and the last node is the end node (nodes.len() - 1).
-    let nodes: Vec<(usize, usize, char)> = map
+    let nodes: Vec<Pos> = map
         .iter()
-        .enumerate()
-        .flat_map(|(y, row)| {
-            row.iter()
-                .enumerate()
-                .filter_map(move |(x, tile)| (*tile != '#').then_some((x, y, *tile)))
-        })
+        .filter(|&(_pos, &tile)| tile != '#')
+        .map(|(pos, _)| pos)
         .collect();
-    let indices: HashMap<(usize, usize), usize> = nodes
-        .iter()
-        .enumerate()
-        .map(|(i, (x, y, _tile))| ((*x, *y), i))
-        .collect();
-    let n = nodes.len();
-    let mut graph = Graph::from(n);
+    let mut indices = map.map(|_| None);
+    for (i, &pos) in nodes.iter().enumerate() {
+        indices[pos] = Some(i);
+    }
 
-    for (u, tile) in nodes.iter().enumerate() {
-        let (x, y, tile) = *tile;
+    let mut graph = Graph::from(nodes.len());
 
-        if (tile == '.' || tile == '<') && x != 0 && map[y][x - 1] != '#' {
-            graph.add_edge(u, indices[&(x - 1, y)]);
-        }
-        if (tile == '.' || tile == '^') && y != 0 && map[y - 1][x] != '#' {
-            graph.add_edge(u, indices[&(x, y - 1)]);
-        }
-        if (tile == '.' || tile == '>') && x + 1 != bounds.0 && map[y][x + 1] != '#' {
-            graph.add_edge(u, indices[&(x + 1, y)]);
-        }
-        if (tile == '.' || tile == 'v') && y + 1 != bounds.1 && map[y + 1][x] != '#' {
-            graph.add_edge(u, indices[&(x, y + 1)]);
+    for (u, &pos) in nodes.iter().enumerate() {
+        let directions: &[Direction] = match map[pos] {
+            '^' => &[Direction::North],
+            '>' => &[Direction::East],
+            'v' => &[Direction::South],
+            '<' => &[Direction::West],
+            _ => &Direction::ALL4,
+        };
+
+        for &dir in directions {
+            if let Some(v) = map.step(pos, dir).and_then(|next| indices[next]) {
+                graph.add_edge(u, v);
+            }
         }
     }
 

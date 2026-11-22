@@ -1,62 +1,38 @@
 use aoc_utils::Solution;
+use aoc_utils::grid::{Direction, Grid, Pos};
 
 struct Day15;
 
 impl Solution for Day15 {
-    type Input<'a> = (Vec<Vec<Tile>>, Vec<Direction>, (usize, usize));
+    type Input<'a> = (Grid<Tile>, Vec<Direction>, Pos);
     type Output1 = usize;
     type Output2 = usize;
 
     fn process(input: &str) -> Self::Input<'_> {
-        let parts = input.split_once("\n\n").unwrap();
+        let (map, movements) = input.split_once("\n\n").unwrap();
 
-        let map: Vec<Vec<_>> = parts
-            .0
+        let map = Grid::parse(map, |c| c);
+        let robot = map.find(&'@').unwrap();
+        let map = map.map(|&tile| match tile {
+            '#' => Tile::Wall,
+            '.' | '@' => Tile::Floor,
+            'O' => Tile::Box,
+            _ => panic!("Unknown tile: {tile}"),
+        });
+
+        let movements = movements
             .lines()
-            .filter(|s| !s.is_empty())
-            .map(|line| line.chars().collect())
+            .flat_map(str::chars)
+            .map(|movement| match movement {
+                '^' => Direction::North,
+                '>' => Direction::East,
+                'v' => Direction::South,
+                '<' => Direction::West,
+                _ => panic!("Unknown movement: {movement}"),
+            })
             .collect();
 
-        let movements: Vec<_> = parts
-            .1
-            .lines()
-            .filter(|s| !s.is_empty())
-            .flat_map(|line| line.chars().collect::<Vec<_>>())
-            .collect();
-
-        let mut robot = (0, 0);
-
-        (
-            map.into_iter()
-                .enumerate()
-                .map(|(y, row)| {
-                    row.into_iter()
-                        .enumerate()
-                        .map(|(x, tile)| match tile {
-                            '#' => Tile::Wall,
-                            '.' => Tile::Floor,
-                            'O' => Tile::Box,
-                            '@' => {
-                                robot = (x, y);
-                                Tile::Floor
-                            }
-                            _ => panic!("Unknown tile: {tile}"),
-                        })
-                        .collect()
-                })
-                .collect(),
-            movements
-                .into_iter()
-                .map(|movement| match movement {
-                    '^' => Direction::North,
-                    '>' => Direction::East,
-                    'v' => Direction::South,
-                    '<' => Direction::West,
-                    _ => panic!("Unknown movement: {movement}"),
-                })
-                .collect(),
-            robot,
-        )
+        (map, movements, robot)
     }
 
     fn part1((map, movements, robot): &Self::Input<'_>) -> Self::Output1 {
@@ -67,9 +43,8 @@ impl Solution for Day15 {
     }
 
     fn part2((map, movements, robot): &Self::Input<'_>) -> Self::Output2 {
-        let mut map = map.clone();
-        expand_map(&mut map);
-        let mut robot = (robot.0 * 2, robot.1);
+        let mut map = expand_map(map);
+        let mut robot = Pos::new(robot.x * 2, robot.y);
 
         calculate_future_gps(&mut map, movements, &mut robot)
     }
@@ -86,105 +61,70 @@ enum Tile {
     RightBox,
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-enum Direction {
-    North,
-    East,
-    South,
-    West,
-}
-
-impl Direction {
-    fn offset(self) -> (isize, isize) {
-        match self {
-            Direction::North => (0, -1),
-            Direction::East => (1, 0),
-            Direction::South => (0, 1),
-            Direction::West => (-1, 0),
-        }
-    }
-}
-
-fn push_boxes_horizontally(map: &mut [Vec<Tile>], start: (usize, usize), dir: Direction) -> bool {
-    let (dx, dy) = dir.offset();
-
-    let sx = start.0 as isize;
-    let sy = start.1 as isize;
-    let mut far_x = sx;
-    let mut far_y = sy;
+fn push_boxes_horizontally(map: &mut Grid<Tile>, start: Pos, dir: Direction) -> bool {
+    let mut f_pos = start;
 
     loop {
-        let nx = far_x + dx;
-        let ny = far_y + dy;
+        let n_pos = f_pos.step(dir).unwrap();
 
-        match map[ny as usize][nx as usize] {
+        match map[n_pos] {
             Tile::Wall => return false,
             Tile::Floor => {
-                let mut bx = nx;
-                let mut by = ny;
+                let mut b_pos = n_pos;
 
-                while bx != sx || by != sy {
-                    map[by as usize][bx as usize] = map[(by - dy) as usize][(bx - dx) as usize];
-                    bx -= dx;
-                    by -= dy;
+                while b_pos != start {
+                    let new_b_pos = b_pos.step(dir.opposite()).unwrap();
+                    map[b_pos] = map[new_b_pos];
+                    b_pos = new_b_pos;
                 }
-                map[sy as usize][sx as usize] = Tile::Floor;
+                map[start] = Tile::Floor;
                 return true;
             }
             Tile::Box | Tile::LeftBox | Tile::RightBox => {
-                far_x = nx;
-                far_y = ny;
+                f_pos = n_pos;
             }
         }
     }
 }
 
-fn push_boxes_vertically(map: &mut [Vec<Tile>], start: (usize, usize), dir: Direction) -> bool {
-    let (dx, dy) = dir.offset();
-
-    let sx = start.0 as isize;
-    let sy = start.1 as isize;
-
-    let mut changes = Vec::new();
-    match map[start.1][start.0] {
+/// The moves of the box at `pos`, or of both halves of a wide box, one step in `dir`.
+fn box_moves(
+    map: &Grid<Tile>,
+    pos: Pos,
+    dir: Direction,
+) -> impl Iterator<Item = (Tile, Pos, Pos)> + '_ {
+    let (first, second) = match map[pos] {
         Tile::Wall | Tile::Floor => panic!("Shouldn't encounter wall or floor here."),
-        Tile::Box => changes.push(vec![(Tile::Box, (sx, sy), (sx + dx, sy + dy))]),
-        Tile::LeftBox => changes.push(vec![
-            (Tile::LeftBox, (sx, sy), (sx + dx, sy + dy)),
-            (Tile::RightBox, (sx + 1, sy), (sx + 1 + dx, sy + dy)),
-        ]),
-        Tile::RightBox => changes.push(vec![
-            (Tile::LeftBox, (sx - 1, sy), (sx - 1 + dx, sy + dy)),
-            (Tile::RightBox, (sx, sy), (sx + dx, sy + dy)),
-        ]),
-    }
+        Tile::Box => (pos, None),
+        Tile::LeftBox => (pos, pos.step(Direction::East)),
+        Tile::RightBox => (pos.step(Direction::West).unwrap(), Some(pos)),
+    };
+
+    std::iter::once(first)
+        .chain(second)
+        .map(move |from| (map[from], from, from.step(dir).unwrap()))
+}
+
+fn push_boxes_vertically(map: &mut Grid<Tile>, start: Pos, dir: Direction) -> bool {
+    let mut changes = vec![box_moves(map, start, dir).collect::<Vec<_>>()];
 
     loop {
-        let last_changes = &changes[changes.len() - 1];
         let mut new_changes = Vec::new();
-        for &(_t, _from, (nx, ny)) in last_changes {
-            match map[ny as usize][nx as usize] {
+        for &(_tile, _from, to) in &changes[changes.len() - 1] {
+            match map[to] {
                 Tile::Wall => return false,
                 Tile::Floor => {}
-                Tile::Box => {
-                    new_changes.extend_from_slice(&[(Tile::Box, (nx, ny), (nx + dx, ny + dy))]);
+                Tile::Box | Tile::LeftBox | Tile::RightBox => {
+                    new_changes.extend(box_moves(map, to, dir));
                 }
-                Tile::LeftBox => new_changes.extend_from_slice(&[
-                    (Tile::LeftBox, (nx, ny), (nx + dx, ny + dy)),
-                    (Tile::RightBox, (nx + 1, ny), (nx + 1 + dx, ny + dy)),
-                ]),
-                Tile::RightBox => new_changes.extend_from_slice(&[
-                    (Tile::LeftBox, (nx - 1, ny), (nx - 1 + dx, ny + dy)),
-                    (Tile::RightBox, (nx, ny), (nx + dx, ny + dy)),
-                ]),
             }
         }
 
         if new_changes.is_empty() {
             for row_change in changes.iter().rev() {
-                for &(t, (x, y), (nx, ny)) in row_change {
-                    map[y as usize][x as usize] = Tile::Floor;
-                    map[ny as usize][nx as usize] = t;
+                for &(tile, from, to) in row_change {
+                    map[from] = Tile::Floor;
+                    map[to] = tile;
                 }
             }
             return true;
@@ -194,13 +134,10 @@ fn push_boxes_vertically(map: &mut [Vec<Tile>], start: (usize, usize), dir: Dire
     }
 }
 
-fn move_robot(map: &mut [Vec<Tile>], robot: &mut (usize, usize), dir: Direction) {
-    let (dx, dy) = dir.offset();
-    let next_pos = (
-        (robot.0 as isize + dx) as usize,
-        (robot.1 as isize + dy) as usize,
-    );
-    match map[next_pos.1][next_pos.0] {
+fn move_robot(map: &mut Grid<Tile>, robot: &mut Pos, dir: Direction) {
+    let next_pos = robot.step(dir).unwrap();
+
+    match map[next_pos] {
         Tile::Wall => {}
         Tile::Floor => *robot = next_pos,
         Tile::Box | Tile::LeftBox | Tile::RightBox => match dir {
@@ -218,25 +155,14 @@ fn move_robot(map: &mut [Vec<Tile>], robot: &mut (usize, usize), dir: Direction)
     }
 }
 
-fn get_gps(map: &[Vec<Tile>]) -> usize {
+fn get_gps(map: &Grid<Tile>) -> usize {
     map.iter()
-        .enumerate()
-        .flat_map(|(y, row)| {
-            row.iter()
-                .enumerate()
-                .filter_map(move |(x, tile)| match tile {
-                    Tile::Wall | Tile::Floor | Tile::RightBox => None,
-                    Tile::Box | Tile::LeftBox => Some(100 * y + x),
-                })
-        })
+        .filter(|&(_pos, &tile)| matches!(tile, Tile::Box | Tile::LeftBox))
+        .map(|(pos, _)| 100 * pos.y + pos.x)
         .sum()
 }
 
-fn calculate_future_gps(
-    map: &mut [Vec<Tile>],
-    movements: &Vec<Direction>,
-    robot: &mut (usize, usize),
-) -> usize {
+fn calculate_future_gps(map: &mut Grid<Tile>, movements: &[Direction], robot: &mut Pos) -> usize {
     for &dir in movements {
         move_robot(map, robot, dir);
     }
@@ -244,27 +170,21 @@ fn calculate_future_gps(
     get_gps(map)
 }
 
-fn expand_map(map: &mut [Vec<Tile>]) {
-    let old_width = map[0].len();
-    let new_width = old_width * 2;
+fn expand_map(map: &Grid<Tile>) -> Grid<Tile> {
+    let mut wide_map = Grid::new(map.width() * 2, map.height(), Tile::Floor);
 
-    for row in map.iter_mut() {
-        row.resize(new_width, Tile::Wall);
-
-        for x in (0..old_width).rev() {
-            let new_x = x * 2;
-            row[new_x] = row[x];
-            match row[x] {
-                Tile::Wall => row[new_x + 1] = Tile::Wall,
-                Tile::Floor => row[new_x + 1] = Tile::Floor,
-                Tile::Box => {
-                    row[new_x] = Tile::LeftBox;
-                    row[new_x + 1] = Tile::RightBox;
-                }
-                Tile::LeftBox | Tile::RightBox => panic!("Wide boxes are not supported."),
-            }
-        }
+    for (pos, &tile) in map.iter() {
+        let (left, right) = match tile {
+            Tile::Wall => (Tile::Wall, Tile::Wall),
+            Tile::Floor => (Tile::Floor, Tile::Floor),
+            Tile::Box => (Tile::LeftBox, Tile::RightBox),
+            Tile::LeftBox | Tile::RightBox => panic!("Wide boxes are not supported."),
+        };
+        wide_map[Pos::new(pos.x * 2, pos.y)] = left;
+        wide_map[Pos::new(pos.x * 2 + 1, pos.y)] = right;
     }
+
+    wide_map
 }
 
 #[cfg(test)]

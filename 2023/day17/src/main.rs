@@ -1,22 +1,18 @@
-use std::cmp::Ordering;
+use std::cmp::Reverse;
 use std::collections::BinaryHeap;
-use std::sync::LazyLock;
-use std::vec;
 
 use aoc_utils::Solution;
+use aoc_utils::grid::{Direction, Grid, Pos};
 
 struct Day17;
 
 impl Solution for Day17 {
-    type Input<'a> = Vec<Vec<u32>>;
+    type Input<'a> = Grid<u32>;
     type Output1 = u32;
     type Output2 = u32;
 
     fn process(input: &str) -> Self::Input<'_> {
-        input
-            .lines()
-            .map(|row| row.chars().map(|char| char.to_digit(10).unwrap()).collect())
-            .collect()
+        Grid::parse(input, |char| char.to_digit(10).unwrap())
     }
 
     fn part1(layout: &Self::Input<'_>) -> Self::Output1 {
@@ -31,135 +27,10 @@ impl Solution for Day17 {
 aoc_utils::run!(2023, 17, Day17);
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-enum Direction {
-    North = 0,
-    West = 1,
-    South = 2,
-    East = 3,
-}
-
-static DIRECTIONS: LazyLock<Vec<Direction>> = LazyLock::new(|| {
-    vec![
-        Direction::North,
-        Direction::West,
-        Direction::South,
-        Direction::East,
-    ]
-});
-
-impl Direction {
-    fn opposite(self) -> Direction {
-        match self {
-            Direction::North => Direction::South,
-            Direction::West => Direction::East,
-            Direction::South => Direction::North,
-            Direction::East => Direction::West,
-        }
-    }
-    fn get_next_coord(
-        self,
-        coord: &(usize, usize),
-        bounds: &(usize, usize),
-    ) -> Option<(usize, usize)> {
-        match self {
-            Direction::North => {
-                if coord.1 != 0 {
-                    return Some((coord.0, coord.1 - 1));
-                }
-            }
-            Direction::West => {
-                if coord.0 != 0 {
-                    return Some((coord.0 - 1, coord.1));
-                }
-            }
-            Direction::South => {
-                if coord.1 + 1 < bounds.1 {
-                    return Some((coord.0, coord.1 + 1));
-                }
-            }
-            Direction::East => {
-                if coord.0 + 1 < bounds.0 {
-                    return Some((coord.0 + 1, coord.1));
-                }
-            }
-        }
-
-        None
-    }
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 struct State {
-    cost: u32,
-    coord: (usize, usize),
+    pos: Pos,
     direction: Direction,
     moves_in_direction: usize,
-}
-
-impl State {
-    fn from(
-        cost: u32,
-        coord: (usize, usize),
-        direction: Direction,
-        moves_in_direction: usize,
-    ) -> Self {
-        State {
-            cost,
-            coord,
-            direction,
-            moves_in_direction,
-        }
-    }
-
-    fn get_index(self, bounds: &(usize, usize), max_moves: usize) -> usize {
-        self.moves_in_direction
-            + self.direction as usize * max_moves
-            + self.coord.0 * max_moves * DIRECTIONS.len()
-            + self.coord.1 * max_moves * DIRECTIONS.len() * bounds.0
-    }
-
-    fn next_states(
-        self,
-        layout: &<Day17 as Solution>::Input<'_>,
-        min_moves: usize,
-        max_moves: usize,
-    ) -> Vec<State> {
-        let bounds = (layout[0].len(), layout.len());
-        let opposite = self.direction.opposite();
-
-        DIRECTIONS
-            .iter()
-            .filter(|dir| {
-                **dir != opposite
-                    && (self.moves_in_direction >= min_moves || **dir == self.direction)
-                    && (self.moves_in_direction + 1 < max_moves || **dir != self.direction)
-            })
-            .filter_map(|dir| {
-                dir.get_next_coord(&self.coord, &bounds).map(|coord| {
-                    let cost = layout[coord.1][coord.0];
-                    let dir = *dir;
-
-                    if self.direction == dir {
-                        State::from(self.cost + cost, coord, dir, self.moves_in_direction + 1)
-                    } else {
-                        State::from(self.cost + cost, coord, dir, 1)
-                    }
-                })
-            })
-            .collect()
-    }
-}
-
-impl Ord for State {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other.cost.cmp(&self.cost)
-    }
-}
-
-impl PartialOrd for State {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
 }
 
 fn shortest_path(
@@ -167,44 +38,79 @@ fn shortest_path(
     min_moves: usize,
     max_moves: usize,
 ) -> u32 {
-    let bounds = (layout[0].len(), layout.len());
+    let end = Pos::new(layout.width() - 1, layout.height() - 1);
+    let directions = Direction::ALL4.len();
 
-    let end = (bounds.0 - 1, bounds.1 - 1);
-
-    let mut dists = vec![u32::MAX; max_moves * DIRECTIONS.len() * bounds.0 * bounds.1];
+    let index = |state: State| {
+        (layout.flat_index(state.pos) * directions + state.direction as usize) * max_moves
+            + state.moves_in_direction
+    };
+    let state = |index: usize| {
+        let cell = index / (directions * max_moves);
+        State {
+            pos: Pos::new(cell % layout.width(), cell / layout.width()),
+            direction: Direction::ALL4[index / max_moves % directions],
+            moves_in_direction: index % max_moves,
+        }
+    };
+    let mut dists = vec![u32::MAX; layout.width() * layout.height() * directions * max_moves];
 
     let mut heap = BinaryHeap::new();
-    DIRECTIONS
-        .iter()
-        .map(|dir| State::from(0, (0, 0), *dir, 0))
-        .for_each(|start| {
-            dists[start.get_index(&bounds, max_moves)] = 0;
-            heap.push(start);
+    for direction in Direction::ALL4 {
+        let start = index(State {
+            pos: Pos::new(0, 0),
+            direction,
+            moves_in_direction: 0,
         });
+        dists[start] = 0;
+        heap.push(Reverse((0, start)));
+    }
 
-    while let Some(current) = heap.pop() {
-        if current.cost > dists[current.get_index(&bounds, max_moves)] {
+    while let Some(Reverse((cost, current_index))) = heap.pop() {
+        if cost > dists[current_index] {
             continue;
         }
+        let current = state(current_index);
 
-        for next in current.next_states(layout, min_moves, max_moves) {
-            if next.cost < dists[next.get_index(&bounds, max_moves)] {
-                dists[next.get_index(&bounds, max_moves)] = next.cost;
-                heap.push(next);
+        for direction in Direction::ALL4 {
+            let straight = direction == current.direction;
+            if direction == current.direction.opposite()
+                || (current.moves_in_direction < min_moves && !straight)
+                || (current.moves_in_direction + 1 >= max_moves && straight)
+            {
+                continue;
+            }
+
+            let Some(pos) = layout.step(current.pos, direction) else {
+                continue;
+            };
+            let next = index(State {
+                pos,
+                direction,
+                moves_in_direction: if straight {
+                    current.moves_in_direction + 1
+                } else {
+                    1
+                },
+            });
+            let next_cost = cost + layout[pos];
+
+            if next_cost < dists[next] {
+                dists[next] = next_cost;
+                heap.push(Reverse((next_cost, next)));
             }
         }
     }
 
     (min_moves..max_moves)
-        .map(|moves| {
-            DIRECTIONS
-                .iter()
-                .map(|dir| {
-                    let state = State::from(0, end, *dir, moves);
-                    dists[state.get_index(&bounds, max_moves)]
-                })
-                .min()
-                .unwrap()
+        .flat_map(|moves_in_direction| {
+            Direction::ALL4.map(|direction| {
+                dists[index(State {
+                    pos: end,
+                    direction,
+                    moves_in_direction,
+                })]
+            })
         })
         .min()
         .unwrap()

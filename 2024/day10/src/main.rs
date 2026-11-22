@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use aoc_utils::Solution;
+use aoc_utils::grid::{Grid, Pos};
 
 struct Day10;
 
@@ -10,38 +11,15 @@ impl Solution for Day10 {
     type Output2 = usize;
 
     fn process(input: &str) -> Self::Input<'_> {
-        let map: Vec<Vec<_>> = input
-            .lines()
-            .filter(|line| !line.is_empty())
-            .map(|line| line.chars().map(|ch| ch.to_digit(10).unwrap()).collect())
-            .collect();
+        let map = Grid::parse(input, |ch| ch.to_digit(10).unwrap());
 
-        let rows = map.len();
-        let cols = if rows > 0 { map[0].len() } else { 0 };
-
-        let new_rows = rows + 2;
-        let new_cols = cols + 2;
-
-        let mut enhanced_map = vec![vec![u32::MAX; new_cols]; new_rows];
-
-        for i in 0..rows {
-            for j in 0..cols {
-                enhanced_map[i + 1][j + 1] = map[i][j];
-            }
-        }
-
-        let trailheads = enhanced_map
+        let trailheads = map
             .iter()
-            .enumerate()
-            .flat_map(|(y, row)| {
-                row.iter()
-                    .enumerate()
-                    .filter_map(|(x, height)| if *height == 0 { Some((x, y)) } else { None })
-                    .collect::<Vec<_>>()
-            })
+            .filter(|&(_, &height)| height == 0)
+            .map(|(pos, _)| pos)
             .collect::<Vec<_>>();
 
-        run_dfs(&enhanced_map, &trailheads)
+        run_dfs(&map, &trailheads)
     }
 
     fn part1((trailtails, _distinct_trails): &Self::Input<'_>) -> Self::Output1 {
@@ -60,50 +38,40 @@ enum VisitState {
     Post,
 }
 
-fn run_dfs<'a>(map: &[Vec<u32>], trailheads: &[(usize, usize)]) -> <Day10 as Solution>::Input<'a> {
+fn run_dfs<'a>(map: &Grid<u32>, trailheads: &[Pos]) -> <Day10 as Solution>::Input<'a> {
     trailheads
         .iter()
-        .map(|trailhead| {
-            let mut visited = vec![vec![false; map[0].len()]; map.len()];
+        .map(|&trailhead| {
+            let mut visited = map.map(|_| false);
 
             let mut trailtails = HashSet::new();
 
             let mut distinct_trails = 0;
 
-            let mut stack = vec![(*trailhead, VisitState::Pre)];
-            visited[trailhead.1][trailhead.0] = true;
+            let mut stack = vec![(trailhead, VisitState::Pre)];
+            visited[trailhead] = true;
 
             while let Some((pos, state)) = stack.pop() {
                 match state {
                     VisitState::Pre => {
                         stack.push((pos, VisitState::Post));
 
-                        let height = map[pos.1][pos.0];
+                        let height = map[pos];
 
-                        let next = vec![
-                            (pos.0, pos.1 - 1),
-                            (pos.0 + 1, pos.1),
-                            (pos.0, pos.1 + 1),
-                            (pos.0 - 1, pos.1),
-                        ];
-
-                        for next_pos in next {
-                            if !visited[next_pos.1][next_pos.0] {
-                                let new_height = map[next_pos.1][next_pos.0];
-                                if new_height == height + 1 {
-                                    if new_height == 9 {
-                                        trailtails.insert(next_pos);
-                                        distinct_trails += 1;
-                                    } else {
-                                        stack.push((next_pos, VisitState::Pre));
-                                        visited[next_pos.1][next_pos.0] = true;
-                                    }
+                        for next_pos in map.neighbors4(pos) {
+                            if !visited[next_pos] && map[next_pos] == height + 1 {
+                                if map[next_pos] == 9 {
+                                    trailtails.insert(next_pos);
+                                    distinct_trails += 1;
+                                } else {
+                                    stack.push((next_pos, VisitState::Pre));
+                                    visited[next_pos] = true;
                                 }
                             }
                         }
                     }
                     VisitState::Post => {
-                        visited[pos.1][pos.0] = false;
+                        visited[pos] = false;
                     }
                 }
             }

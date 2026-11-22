@@ -1,80 +1,50 @@
-use std::ops::{BitAnd, BitOrAssign};
-
 use aoc_utils::Solution;
-use itertools::repeat_n;
+use aoc_utils::grid::{Direction, Grid, Pos};
 
 struct Day16;
 
 impl Solution for Day16 {
-    type Input<'a> = Vec<Vec<TileType>>;
-    type Output1 = u64;
-    type Output2 = u64;
+    type Input<'a> = Grid<TileType>;
+    type Output1 = usize;
+    type Output2 = usize;
 
     fn process(input: &str) -> Self::Input<'_> {
-        input
-            .lines()
-            .map(|row| {
-                row.chars()
-                    .map(|char| match char {
-                        '/' => TileType::Slash,
-                        '\\' => TileType::Backslash,
-                        '|' => TileType::Vertical,
-                        '-' => TileType::Horizontal,
-                        _ => TileType::None,
-                    })
-                    .collect()
-            })
-            .collect()
+        Grid::parse(input, |char| match char {
+            '/' => TileType::Slash,
+            '\\' => TileType::Backslash,
+            '|' => TileType::Vertical,
+            '-' => TileType::Horizontal,
+            _ => TileType::None,
+        })
     }
 
     fn part1(layout: &Self::Input<'_>) -> Self::Output1 {
-        get_energized_tiles(layout, Ray::from((0, 0), Direction::East))
+        get_energized_tiles(layout, Pos::new(0, 0), Direction::East)
     }
 
     fn part2(layout: &Self::Input<'_>) -> Self::Output2 {
-        // top
-        (0..layout[0].len())
-            .zip(repeat_n(0, layout.len()))
-            .zip(repeat_n(Direction::South, layout[0].len()))
-            // bottom
-            .chain(
-                (0..layout[0].len())
-                    .zip(repeat_n(0, layout.len()))
-                    .zip(repeat_n(Direction::North, layout[0].len())),
-            )
-            // left
-            .chain(
-                repeat_n(0, layout[0].len())
-                    .zip(0..layout.len())
-                    .zip(repeat_n(Direction::East, layout[0].len())),
-            )
-            // right
-            .chain(
-                repeat_n(0, layout[0].len())
-                    .zip(0..layout.len())
-                    .zip(repeat_n(Direction::West, layout[0].len())),
-            )
-            .map(|(coord, direction)| get_energized_tiles(layout, Ray::from(coord, direction)))
+        let top_bottom = (0..layout.width()).flat_map(|x| {
+            [
+                (Pos::new(x, 0), Direction::South),
+                (Pos::new(x, layout.height() - 1), Direction::North),
+            ]
+        });
+        let left_right = (0..layout.height()).flat_map(|y| {
+            [
+                (Pos::new(0, y), Direction::East),
+                (Pos::new(layout.width() - 1, y), Direction::West),
+            ]
+        });
+
+        top_bottom
+            .chain(left_right)
+            .map(|(pos, direction)| get_energized_tiles(layout, pos, direction))
             .max()
             .unwrap()
     }
 }
 
 aoc_utils::run!(2023, 16, Day16);
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-enum Direction {
-    North = 0b0001,
-    West = 0b0010,
-    South = 0b0100,
-    East = 0b1000,
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-struct Ray {
-    coord: (usize, usize),
-    direction: Direction,
-}
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum TileType {
@@ -85,150 +55,56 @@ enum TileType {
     Horizontal,
 }
 
-impl Direction {
-    fn get_next_coord(
-        self,
-        coord: &(usize, usize),
-        bounds: &(usize, usize),
-    ) -> Option<(usize, usize)> {
-        match self {
-            Direction::North => {
-                if coord.1 != 0 {
-                    return Some((coord.0, coord.1 - 1));
-                }
-            }
-            Direction::West => {
-                if coord.0 != 0 {
-                    return Some((coord.0 - 1, coord.1));
-                }
-            }
-            Direction::South => {
-                if coord.1 < bounds.1 - 1 {
-                    return Some((coord.0, coord.1 + 1));
-                }
-            }
-            Direction::East => {
-                if coord.0 < bounds.0 - 1 {
-                    return Some((coord.0 + 1, coord.1));
-                }
-            }
-        }
-        None
-    }
-
-    fn get_next_ray(self, coord: &(usize, usize), bounds: &(usize, usize)) -> Option<Ray> {
-        self.get_next_coord(coord, bounds)
-            .map(|new_coord| Ray::from(new_coord, self))
-    }
-
-    fn get_next_rays(self, coord: &(usize, usize), bounds: &(usize, usize)) -> Vec<Ray> {
-        self.get_next_ray(coord, bounds)
-            .map_or_default(|next_ray| vec![next_ray])
-    }
-}
-
-impl Ray {
-    fn from(coord: (usize, usize), direction: Direction) -> Self {
-        Ray { coord, direction }
-    }
-
-    fn get_next_ray(self, bounds: &(usize, usize)) -> Option<Ray> {
-        self.direction
-            .get_next_coord(&self.coord, bounds)
-            .map(|new_coord| Ray::from(new_coord, self.direction))
-    }
-
-    fn get_next_rays(self, bounds: &(usize, usize)) -> Vec<Ray> {
-        self.get_next_ray(bounds)
-            .map_or_default(|new_ray| vec![new_ray])
-    }
-}
-
-fn get_next_rays(
-    directions: &[Direction],
-    coord: &(usize, usize),
-    bounds: &(usize, usize),
-) -> Vec<Ray> {
-    directions
-        .iter()
-        .filter_map(|direction| {
-            direction
-                .get_next_coord(coord, bounds)
-                .map(|new_coord| Ray::from(new_coord, *direction))
-        })
-        .collect()
-}
-
 impl TileType {
-    fn get_outgoing_rays(self, incoming: &Ray, bounds: &(usize, usize)) -> Vec<Ray> {
-        match self {
-            TileType::None => incoming.get_next_rays(bounds),
-
-            TileType::Slash => match incoming.direction {
-                Direction::North => Direction::East.get_next_rays(&incoming.coord, bounds),
-                Direction::West => Direction::South.get_next_rays(&incoming.coord, bounds),
-                Direction::South => Direction::West.get_next_rays(&incoming.coord, bounds),
-                Direction::East => Direction::North.get_next_rays(&incoming.coord, bounds),
-            },
-
-            TileType::Backslash => match incoming.direction {
-                Direction::North => Direction::West.get_next_rays(&incoming.coord, bounds),
-                Direction::West => Direction::North.get_next_rays(&incoming.coord, bounds),
-                Direction::South => Direction::East.get_next_rays(&incoming.coord, bounds),
-                Direction::East => Direction::South.get_next_rays(&incoming.coord, bounds),
-            },
-
-            TileType::Vertical => match incoming.direction {
-                Direction::North | Direction::South => incoming.get_next_rays(bounds),
-                Direction::West | Direction::East => get_next_rays(
-                    &[Direction::North, Direction::South],
-                    &incoming.coord,
-                    bounds,
-                ),
-            },
-
-            TileType::Horizontal => match incoming.direction {
-                Direction::North | Direction::South => {
-                    get_next_rays(&[Direction::West, Direction::East], &incoming.coord, bounds)
-                }
-                Direction::West | Direction::East => incoming.get_next_rays(bounds),
-            },
+    /// The directions in which a beam leaves this tile when it enters moving in `direction`.
+    fn outgoing(self, direction: Direction) -> [Option<Direction>; 2] {
+        match (self, direction) {
+            (TileType::Slash, Direction::North | Direction::South)
+            | (TileType::Backslash, Direction::East | Direction::West) => {
+                [Some(direction.turn_right()), None]
+            }
+            (TileType::Slash, Direction::East | Direction::West)
+            | (TileType::Backslash, Direction::North | Direction::South) => {
+                [Some(direction.turn_left()), None]
+            }
+            (TileType::Vertical, Direction::East | Direction::West) => {
+                [Some(Direction::North), Some(Direction::South)]
+            }
+            (TileType::Horizontal, Direction::North | Direction::South) => {
+                [Some(Direction::West), Some(Direction::East)]
+            }
+            _ => [Some(direction), None],
         }
     }
 }
 
-fn get_energized_tiles(layout: &<Day16 as Solution>::Input<'_>, start: Ray) -> u64 {
-    let bounds = (layout[0].len(), layout.len());
+fn get_energized_tiles(
+    layout: &<Day16 as Solution>::Input<'_>,
+    start: Pos,
+    direction: Direction,
+) -> usize {
+    // The directions of the beams on each tile as bit flags
+    let mut beams_on_tiles = Grid::new(layout.width(), layout.height(), 0u8);
+    let flag = |direction: Direction| 1 << direction as u8;
 
-    let mut rays_on_tiles = vec![vec![0b0000isize; bounds.0]; bounds.1];
+    let mut beams = vec![(start, direction)];
+    beams_on_tiles[start] |= flag(direction);
 
-    let mut rays = vec![start];
-    rays_on_tiles[start.coord.1][start.coord.0].bitor_assign(start.direction as isize);
-
-    while !rays.is_empty() {
-        for ray in &rays {
-            rays_on_tiles[ray.coord.1][ray.coord.0].bitor_assign(ray.direction as isize);
+    while let Some((pos, direction)) = beams.pop() {
+        for next_direction in layout[pos].outgoing(direction).into_iter().flatten() {
+            if let Some(next_pos) = layout.step(pos, next_direction)
+                && beams_on_tiles[next_pos] & flag(next_direction) == 0
+            {
+                beams_on_tiles[next_pos] |= flag(next_direction);
+                beams.push((next_pos, next_direction));
+            }
         }
-
-        rays = rays
-            .iter()
-            .flat_map(|ray| layout[ray.coord.1][ray.coord.0].get_outgoing_rays(ray, &bounds))
-            .filter(|ray| {
-                let direction_val = ray.direction as isize;
-                if rays_on_tiles[ray.coord.1][ray.coord.0].bitand(direction_val) != 0 {
-                    false
-                } else {
-                    rays_on_tiles[ray.coord.1][ray.coord.0].bitor_assign(direction_val);
-                    true
-                }
-            })
-            .collect();
     }
 
-    rays_on_tiles
+    beams_on_tiles
         .iter()
-        .map(|row| row.iter().filter(|tile| **tile != 0).count() as u64)
-        .sum()
+        .filter(|&(_pos, &beams)| beams != 0)
+        .count()
 }
 
 #[cfg(test)]

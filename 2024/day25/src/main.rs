@@ -1,4 +1,5 @@
 use aoc_utils::Solution;
+use aoc_utils::grid::Grid;
 use itertools::Itertools;
 
 struct Day25;
@@ -9,39 +10,23 @@ impl Solution for Day25 {
     type Output2 = &'static str;
 
     fn process(input: &str) -> Self::Input<'_> {
-        let schematics: Vec<Vec<Vec<_>>> = input
-            .split("\n\n")
-            .filter(|s| !s.is_empty())
-            .map(|schematic| {
-                schematic
-                    .lines()
-                    .map(|line| line.chars().collect())
-                    .collect()
-            })
-            .collect();
-
         let mut locks = Vec::new();
         let mut keys = Vec::new();
 
-        for schematic in schematics {
-            if schematic[0].iter().all(|&c| c == '#') {
-                let empty: Vec<usize> = (0..schematic[0].len())
-                    .map(|x| {
-                        (0..schematic.len())
-                            .filter(|&y| schematic[y][x] == '.')
-                            .count()
-                    })
-                    .collect();
-                locks.push(empty);
+        for schematic in input.split("\n\n").filter(|s| !s.is_empty()) {
+            let schematic = Grid::parse(schematic, |c| c == '#');
+            let is_lock = schematic.row(0).iter().all(|&filled| filled);
+
+            // Locks are described by their empty tiles per column, keys by their filled ones
+            let counts = schematic
+                .columns()
+                .map(|column| column.filter(|&&filled| filled != is_lock).count())
+                .collect();
+
+            if is_lock {
+                locks.push(counts);
             } else {
-                let full: Vec<usize> = (0..schematic[0].len())
-                    .map(|x| {
-                        (0..schematic.len())
-                            .filter(|&y| schematic[y][x] == '#')
-                            .count()
-                    })
-                    .collect();
-                keys.push(full);
+                keys.push(counts);
             }
         }
 
