@@ -38,15 +38,18 @@ impl Solution for Day08 {
         antennas
             .iter()
             .flat_map(|antenna_type| {
-                antenna_type.iter().tuple_combinations().flat_map(|(a, b)| {
-                    let (x1, y1) = a;
-                    let (x2, y2) = b;
+                antenna_type
+                    .iter()
+                    .array_combinations::<2>()
+                    .flat_map(|[a, b]| {
+                        let (x1, y1) = a;
+                        let (x2, y2) = b;
 
-                    let xd = x2 - x1;
-                    let yd = y2 - y1;
+                        let xd = x2 - x1;
+                        let yd = y2 - y1;
 
-                    vec![(x1 - xd, y1 - yd), (x2 + xd, y2 + yd)]
-                })
+                        vec![(x1 - xd, y1 - yd), (x2 + xd, y2 + yd)]
+                    })
             })
             .unique()
             .filter(|(x, y)| x >= &0 && y >= &0 && x < len_x && y < len_y)
@@ -59,37 +62,40 @@ impl Solution for Day08 {
         antennas
             .iter()
             .flat_map(|antenna_type| {
-                antenna_type.iter().tuple_combinations().flat_map(|(a, b)| {
-                    let (x1, y1) = a;
-                    let (x2, y2) = b;
+                antenna_type
+                    .iter()
+                    .array_combinations::<2>()
+                    .flat_map(|[a, b]| {
+                        let (x1, y1) = a;
+                        let (x2, y2) = b;
 
-                    let xd = x2 - x1;
-                    let yd = y2 - y1;
+                        let xd = x2 - x1;
+                        let yd = y2 - y1;
 
-                    let gcd = xd.gcd(&yd);
-                    let xd = xd / gcd;
-                    let yd = yd / gcd;
+                        let gcd = xd.gcd(&yd);
+                        let xd = xd / gcd;
+                        let yd = yd / gcd;
 
-                    let mut antinodes = Vec::new();
+                        let mut antinodes = Vec::new();
 
-                    let mut x = *x1;
-                    let mut y = *y1;
-                    while x >= 0 && y >= 0 && x < *len_x && y < *len_y {
-                        antinodes.push((x, y));
-                        x -= xd;
-                        y -= yd;
-                    }
+                        let mut x = *x1;
+                        let mut y = *y1;
+                        while x >= 0 && y >= 0 && x < *len_x && y < *len_y {
+                            antinodes.push((x, y));
+                            x -= xd;
+                            y -= yd;
+                        }
 
-                    let mut x = *x1;
-                    let mut y = *y1;
-                    while x >= 0 && y >= 0 && x < *len_x && y < *len_y {
-                        antinodes.push((x, y));
-                        x += xd;
-                        y += yd;
-                    }
+                        let mut x = *x1;
+                        let mut y = *y1;
+                        while x >= 0 && y >= 0 && x < *len_x && y < *len_y {
+                            antinodes.push((x, y));
+                            x += xd;
+                            y += yd;
+                        }
 
-                    antinodes
-                })
+                        antinodes
+                    })
             })
             .unique()
             .count()

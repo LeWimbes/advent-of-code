@@ -27,8 +27,8 @@ impl Solution for Day11 {
 
         galaxies
             .iter()
-            .tuple_combinations()
-            .map(|(&a, &b)| {
+            .array_combinations::<2>()
+            .map(|[a, b]| {
                 let crossings = empty_rows
                     .iter()
                     .filter(|&&y| a.y.min(b.y) < y && y < a.y.max(b.y))
@@ -38,7 +38,7 @@ impl Solution for Day11 {
                         .filter(|&&x| a.x.min(b.x) < x && x < a.x.max(b.x))
                         .count();
 
-                (a.manhattan(b) as u64, crossings as u64)
+                (a.manhattan(*b) as u64, crossings as u64)
             })
             .collect()
     }
